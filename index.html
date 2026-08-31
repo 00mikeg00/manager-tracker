@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Splitting — Manager Tracker</title>
+<title>Splitting — Tracker</title>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -14,7 +14,15 @@
   }
   .wrap { max-width: 900px; margin: 0 auto; }
   h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
-  .sub { color: #6b6a65; font-size: 14px; margin: 0 0 20px; }
+  .sub { color: #6b6a65; font-size: 14px; margin: 0 0 16px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tab-btn {
+    font-size: 14px; padding: 8px 16px; border: 1px solid #d8d6cf;
+    background: #fff; border-radius: 8px; cursor: pointer; color: #6b6a65;
+  }
+  .tab-btn.active { background: #1f1f1d; color: #fff; border-color: #1f1f1d; }
+  .panel { display: none; }
+  .panel.active { display: block; }
   .add-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
   .add-row2 { display: flex; gap: 8px; margin-bottom: 20px; }
   input, select, textarea {
@@ -38,60 +46,100 @@
   td.actions { text-align: right; white-space: nowrap; }
   td.actions button { padding: 4px 8px; font-size: 12px; margin-left: 4px; }
   select.stage-select { font-size: 12px; padding: 4px 6px; }
-  .notes-cell { width: 280px; }
   .detail-row td { padding: 6px 12px 14px; border-bottom: 2px solid #c9c7bd; }
   .detail-grid { display: flex; gap: 16px; align-items: flex-start; }
   .detail-grid .dates { flex: 0 0 220px; padding-top: 8px; }
   .detail-grid textarea { flex: 1; min-height: 50px; font-size: 13px; }
-  .notes-cell textarea { width: 100%; font-size: 12px; min-height: 60px; }
   .dates { font-size: 11px; color: #9b9a94; line-height: 1.5; white-space: nowrap; }
   .empty, .status { text-align: center; color: #9b9a94; padding: 20px; font-size: 14px; }
   .error { color: #a03434; }
+  .comp-notes { width: 100%; font-size: 12px; min-height: 32px; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Splitting — manager tracker</h1>
-  <p class="sub">Companies contacted for representation. Synced with Google Sheets.</p>
+  <h1>Splitting — tracker</h1>
+  <p class="sub">Managers and competitions, synced with Google Sheets.</p>
 
-  <div class="add-row">
-    <input type="text" id="companyInput" placeholder="Company name" />
-    <input type="text" id="contactInput" placeholder="Contact name (optional)" />
-    <input type="text" id="emailInput" placeholder="Email" />
-    <select id="stageInput">
-      <option value="sent">Sent email</option>
-      <option value="responded">Responded</option>
-      <option value="pilot">Has pilot</option>
-      <option value="passed">Passed</option>
-    </select>
-  </div>
-  <div class="add-row2">
-    <textarea id="notesInput" placeholder="Notes (optional)"></textarea>
-    <button id="addBtn" onclick="addRow()">Add</button>
+  <div class="tabs">
+    <button class="tab-btn active" id="tabBtnManagers" onclick="switchTab('managers')">Managers</button>
+    <button class="tab-btn" id="tabBtnCompetitions" onclick="switchTab('competitions')">Competitions / labs</button>
   </div>
 
-  <div id="statusMsg" class="status">Loading…</div>
-  <table id="table" style="display:none;">
-    <thead>
-      <tr><th>Company</th><th>Contact</th><th>Email</th><th>Stage</th><th></th></tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
+  <div class="panel active" id="panelManagers">
+    <div class="add-row">
+      <input type="text" id="companyInput" placeholder="Company name" />
+      <input type="text" id="contactInput" placeholder="Contact name (optional)" />
+      <input type="text" id="emailInput" placeholder="Email" />
+      <select id="stageInput">
+        <option value="flagged">Flagged</option>
+        <option value="sent" selected>Sent email</option>
+        <option value="responded">Responded</option>
+        <option value="pilot">Has pilot</option>
+        <option value="passed">Passed</option>
+      </select>
+    </div>
+    <div class="add-row2">
+      <textarea id="notesInput" placeholder="Notes (optional)"></textarea>
+      <button id="addBtn" onclick="addManager()">Add</button>
+    </div>
+
+    <div id="mgrStatus" class="status">Loading…</div>
+    <table id="mgrTable" style="display:none;">
+      <thead>
+        <tr><th>Company</th><th>Contact</th><th>Email</th><th>Stage</th><th></th></tr>
+      </thead>
+      <tbody id="mgrTbody"></tbody>
+    </table>
+  </div>
+
+  <div class="panel" id="panelCompetitions">
+    <div class="add-row">
+      <input type="text" id="compNameInput" placeholder="Competition / lab name" />
+      <input type="text" id="compFeeInput" placeholder="Fee (e.g. $59)" style="max-width:110px;" />
+      <input type="text" id="compDeadlineInput" placeholder="Deadline (e.g. Sept 20, 2026)" style="max-width:200px;" />
+      <select id="compStatusInput">
+        <option value="considering">Considering</option>
+        <option value="submitted">Submitted</option>
+        <option value="advanced">Advanced</option>
+        <option value="not-selected">Not selected</option>
+      </select>
+      <button id="compAddBtn" onclick="addCompetition()">Add</button>
+    </div>
+
+    <div id="compStatus" class="status">Loading…</div>
+    <table id="compTable" style="display:none;">
+      <thead>
+        <tr><th>Name</th><th>Fee</th><th>Deadline</th><th>Status</th><th>Notes</th><th></th></tr>
+      </thead>
+      <tbody id="compTbody"></tbody>
+    </table>
+  </div>
 </div>
 
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbzSIgRjjf9waWMqMvOKYduHb3LQ7QQ17TK4UlTOXZNsl0WYFSAsQRAl-fJpdGyIW1tYtw/exec';
-let rows = [];
-const STAGE_LABELS = { sent: 'Sent', responded: 'Responded', pilot: 'Has pilot', passed: 'Passed' };
+let mgrRows = [];
+let compRows = [];
+const STAGE_LABELS = { flagged: 'Flagged', sent: 'Sent', responded: 'Responded', pilot: 'Has pilot', passed: 'Passed' };
 
-async function load() {
-  const statusMsg = document.getElementById('statusMsg');
-  const table = document.getElementById('table');
+function switchTab(tab) {
+  document.getElementById('panelManagers').classList.toggle('active', tab === 'managers');
+  document.getElementById('panelCompetitions').classList.toggle('active', tab === 'competitions');
+  document.getElementById('tabBtnManagers').classList.toggle('active', tab === 'managers');
+  document.getElementById('tabBtnCompetitions').classList.toggle('active', tab === 'competitions');
+}
+
+// ---------- Managers ----------
+
+async function loadManagers() {
+  const statusMsg = document.getElementById('mgrStatus');
+  const table = document.getElementById('mgrTable');
   try {
-    const res = await fetch(API_URL);
+    const res = await fetch(API_URL + '?type=managers');
     if (!res.ok) throw new Error('Request failed');
-    rows = await res.json();
-    render();
+    mgrRows = await res.json();
+    renderManagers();
   } catch (e) {
     statusMsg.textContent = "Couldn't load from Google Sheets. Check the sheet is deployed and try again.";
     statusMsg.classList.add('error');
@@ -100,7 +148,7 @@ async function load() {
   }
 }
 
-async function addRow() {
+async function addManager() {
   const companyEl = document.getElementById('companyInput');
   const contactEl = document.getElementById('contactInput');
   const emailEl = document.getElementById('emailInput');
@@ -123,13 +171,13 @@ async function addRow() {
   try {
     await fetch(API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'add', company, contact, email, stage, notes })
+      body: JSON.stringify({ type: 'managers', action: 'add', company, contact, email, stage, notes })
     });
     companyEl.value = '';
     contactEl.value = '';
     emailEl.value = '';
     notesEl.value = '';
-    await load();
+    await loadManagers();
   } catch (e) {
     alert("Couldn't save — check your connection and try again.");
   } finally {
@@ -141,9 +189,9 @@ async function updateStage(id, stage) {
   try {
     await fetch(API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'update', id, stage })
+      body: JSON.stringify({ type: 'managers', action: 'update', id, stage })
     });
-    await load();
+    await loadManagers();
   } catch (e) {
     alert("Couldn't update — check your connection and try again.");
   }
@@ -153,32 +201,32 @@ async function updateNotes(id, notes) {
   try {
     await fetch(API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'update', id, notes })
+      body: JSON.stringify({ type: 'managers', action: 'update', id, notes })
     });
   } catch (e) {
     alert("Couldn't save notes — check your connection and try again.");
   }
 }
 
-async function removeRow(id) {
+async function removeManager(id) {
   try {
     await fetch(API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'delete', id })
+      body: JSON.stringify({ type: 'managers', action: 'delete', id })
     });
-    await load();
+    await loadManagers();
   } catch (e) {
     alert("Couldn't remove — check your connection and try again.");
   }
 }
 
-function render() {
-  const tbody = document.getElementById('tbody');
-  const table = document.getElementById('table');
-  const statusMsg = document.getElementById('statusMsg');
+function renderManagers() {
+  const tbody = document.getElementById('mgrTbody');
+  const table = document.getElementById('mgrTable');
+  const statusMsg = document.getElementById('mgrStatus');
   tbody.innerHTML = '';
 
-  if (rows.length === 0) {
+  if (mgrRows.length === 0) {
     statusMsg.textContent = 'No managers added yet.';
     statusMsg.classList.remove('error');
     statusMsg.style.display = 'block';
@@ -189,9 +237,10 @@ function render() {
   statusMsg.style.display = 'none';
   table.style.display = 'table';
 
-  rows.forEach(r => {
+  mgrRows.forEach(r => {
     const tr = document.createElement('tr');
     const dateLines = [];
+    if (r.flaggedDate) dateLines.push(`${STAGE_LABELS.flagged}: ${r.flaggedDate}`);
     if (r.sentDate) dateLines.push(`${STAGE_LABELS.sent}: ${r.sentDate}`);
     if (r.respondedDate) dateLines.push(`${STAGE_LABELS.responded}: ${r.respondedDate}`);
     if (r.pilotDate) dateLines.push(`${STAGE_LABELS.pilot}: ${r.pilotDate}`);
@@ -203,13 +252,14 @@ function render() {
       <td>${escapeHtml(r.email || '—')}</td>
       <td>
         <select class="stage-select" onchange="updateStage('${r.id}', this.value)">
+          <option value="flagged" ${r.stage==='flagged'?'selected':''}>Flagged</option>
           <option value="sent" ${r.stage==='sent'?'selected':''}>Sent email</option>
           <option value="responded" ${r.stage==='responded'?'selected':''}>Responded</option>
           <option value="pilot" ${r.stage==='pilot'?'selected':''}>Has pilot</option>
           <option value="passed" ${r.stage==='passed'?'selected':''}>Passed</option>
         </select>
       </td>
-      <td class="actions"><button class="secondary" onclick="removeRow('${r.id}')">Remove</button></td>
+      <td class="actions"><button class="secondary" onclick="removeManager('${r.id}')">Remove</button></td>
     `;
     tbody.appendChild(tr);
 
@@ -227,13 +277,139 @@ function render() {
   });
 }
 
+// ---------- Competitions ----------
+
+async function loadCompetitions() {
+  const statusMsg = document.getElementById('compStatus');
+  const table = document.getElementById('compTable');
+  try {
+    const res = await fetch(API_URL + '?type=competitions');
+    if (!res.ok) throw new Error('Request failed');
+    compRows = await res.json();
+    renderCompetitions();
+  } catch (e) {
+    statusMsg.textContent = "Couldn't load from Google Sheets. Check the Competitions tab exists and try again.";
+    statusMsg.classList.add('error');
+    statusMsg.style.display = 'block';
+    table.style.display = 'none';
+  }
+}
+
+async function addCompetition() {
+  const nameEl = document.getElementById('compNameInput');
+  const feeEl = document.getElementById('compFeeInput');
+  const deadlineEl = document.getElementById('compDeadlineInput');
+  const statusEl = document.getElementById('compStatusInput');
+  const addBtn = document.getElementById('compAddBtn');
+
+  const name = nameEl.value.trim();
+  const fee = feeEl.value.trim();
+  const deadline = deadlineEl.value.trim();
+  const status = statusEl.value;
+  if (!name) {
+    nameEl.style.borderColor = '#a03434';
+    return;
+  }
+  nameEl.style.borderColor = '';
+
+  addBtn.disabled = true;
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ type: 'competitions', action: 'add', name, fee, deadline, status, notes: '' })
+    });
+    nameEl.value = '';
+    feeEl.value = '';
+    deadlineEl.value = '';
+    await loadCompetitions();
+  } catch (e) {
+    alert("Couldn't save — check your connection and try again.");
+  } finally {
+    addBtn.disabled = false;
+  }
+}
+
+async function updateCompStatus(id, status) {
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ type: 'competitions', action: 'update', id, status })
+    });
+    await loadCompetitions();
+  } catch (e) {
+    alert("Couldn't update — check your connection and try again.");
+  }
+}
+
+async function updateCompNotes(id, notes) {
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ type: 'competitions', action: 'update', id, notes })
+    });
+  } catch (e) {
+    alert("Couldn't save notes — check your connection and try again.");
+  }
+}
+
+async function removeCompetition(id) {
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ type: 'competitions', action: 'delete', id })
+    });
+    await loadCompetitions();
+  } catch (e) {
+    alert("Couldn't remove — check your connection and try again.");
+  }
+}
+
+function renderCompetitions() {
+  const tbody = document.getElementById('compTbody');
+  const table = document.getElementById('compTable');
+  const statusMsg = document.getElementById('compStatus');
+  tbody.innerHTML = '';
+
+  if (compRows.length === 0) {
+    statusMsg.textContent = 'No competitions or labs added yet.';
+    statusMsg.classList.remove('error');
+    statusMsg.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+
+  statusMsg.style.display = 'none';
+  table.style.display = 'table';
+
+  compRows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(r.name)}</td>
+      <td>${escapeHtml(r.fee || '—')}</td>
+      <td>${escapeHtml(r.deadline || '—')}</td>
+      <td>
+        <select class="stage-select" onchange="updateCompStatus('${r.id}', this.value)">
+          <option value="considering" ${r.status==='considering'?'selected':''}>Considering</option>
+          <option value="submitted" ${r.status==='submitted'?'selected':''}>Submitted</option>
+          <option value="advanced" ${r.status==='advanced'?'selected':''}>Advanced</option>
+          <option value="not-selected" ${r.status==='not-selected'?'selected':''}>Not selected</option>
+        </select>
+      </td>
+      <td><textarea class="comp-notes" onblur="updateCompNotes('${r.id}', this.value)">${escapeHtml(r.notes || '')}</textarea></td>
+      <td class="actions"><button class="secondary" onclick="removeCompetition('${r.id}')">Remove</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
 function escapeHtml(s) {
   const div = document.createElement('div');
   div.textContent = s;
   return div.innerHTML;
 }
 
-load();
+loadManagers();
+loadCompetitions();
 </script>
 </body>
 </html>
