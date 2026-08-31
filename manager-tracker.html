@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Splitting — Manager Tracker</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f5f4f0;
+    color: #1f1f1d;
+    margin: 0;
+    padding: 2rem 1rem;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: #6b6a65; font-size: 14px; margin: 0 0 20px; }
+  .add-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .add-row2 { display: flex; gap: 8px; margin-bottom: 20px; }
+  input, select, textarea {
+    font-size: 14px; padding: 8px 10px; border: 1px solid #d8d6cf;
+    border-radius: 8px; background: #fff; font-family: inherit;
+  }
+  input[type=text] { flex: 1; min-width: 140px; }
+  textarea { flex: 1; resize: vertical; min-height: 36px; }
+  button {
+    font-size: 14px; padding: 8px 14px; border: 1px solid #1f1f1d;
+    background: #1f1f1d; color: #fff; border-radius: 8px; cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.secondary { background: transparent; color: #1f1f1d; border: 1px solid #d8d6cf; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; border: 1px solid #e5e3db; }
+  th, td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #efeee8; vertical-align: top; }
+  th { color: #6b6a65; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  tbody tr.detail-row:last-child td { border-bottom: none; }
+  tbody tr:not(.detail-row) { border-top: 1px solid #e5e3db; }
+  tbody tr:first-child { border-top: none; }
+  td.actions { text-align: right; white-space: nowrap; }
+  td.actions button { padding: 4px 8px; font-size: 12px; margin-left: 4px; }
+  select.stage-select { font-size: 12px; padding: 4px 6px; }
+  .notes-cell { width: 280px; }
+  .detail-row td { padding: 6px 12px 14px; border-bottom: 2px solid #c9c7bd; }
+  .detail-grid { display: flex; gap: 16px; align-items: flex-start; }
+  .detail-grid .dates { flex: 0 0 220px; padding-top: 8px; }
+  .detail-grid textarea { flex: 1; min-height: 50px; font-size: 13px; }
+  .notes-cell textarea { width: 100%; font-size: 12px; min-height: 60px; }
+  .dates { font-size: 11px; color: #9b9a94; line-height: 1.5; white-space: nowrap; }
+  .empty, .status { text-align: center; color: #9b9a94; padding: 20px; font-size: 14px; }
+  .error { color: #a03434; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Splitting — manager tracker</h1>
+  <p class="sub">Companies contacted for representation. Synced with Google Sheets.</p>
+
+  <div class="add-row">
+    <input type="text" id="companyInput" placeholder="Company name" />
+    <input type="text" id="contactInput" placeholder="Contact name (optional)" />
+    <input type="text" id="emailInput" placeholder="Email" />
+    <select id="stageInput">
+      <option value="sent">Sent email</option>
+      <option value="responded">Responded</option>
+      <option value="pilot">Has pilot</option>
+      <option value="passed">Passed</option>
+    </select>
+  </div>
+  <div class="add-row2">
+    <textarea id="notesInput" placeholder="Notes (optional)"></textarea>
+    <button id="addBtn" onclick="addRow()">Add</button>
+  </div>
+
+  <div id="statusMsg" class="status">Loading…</div>
+  <table id="table" style="display:none;">
+    <thead>
+      <tr><th>Company</th><th>Contact</th><th>Email</th><th>Stage</th><th></th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbzSIgRjjf9waWMqMvOKYduHb3LQ7QQ17TK4UlTOXZNsl0WYFSAsQRAl-fJpdGyIW1tYtw/exec';
+let rows = [];
+const STAGE_LABELS = { sent: 'Sent', responded: 'Responded', pilot: 'Has pilot', passed: 'Passed' };
+
+async function load() {
+  const statusMsg = document.getElementById('statusMsg');
+  const table = document.getElementById('table');
+  try {
+    const res = await fetch(API_URL);
+    if (!res.ok) throw new Error('Request failed');
+    rows = await res.json();
+    render();
+  } catch (e) {
+    statusMsg.textContent = "Couldn't load from Google Sheets. Check the sheet is deployed and try again.";
+    statusMsg.classList.add('error');
+    statusMsg.style.display = 'block';
+    table.style.display = 'none';
+  }
+}
+
+async function addRow() {
+  const companyEl = document.getElementById('companyInput');
+  const contactEl = document.getElementById('contactInput');
+  const emailEl = document.getElementById('emailInput');
+  const stageEl = document.getElementById('stageInput');
+  const notesEl = document.getElementById('notesInput');
+  const addBtn = document.getElementById('addBtn');
+
+  const company = companyEl.value.trim();
+  const contact = contactEl.value.trim();
+  const email = emailEl.value.trim();
+  const stage = stageEl.value;
+  const notes = notesEl.value.trim();
+  if (!company) {
+    companyEl.style.borderColor = '#a03434';
+    return;
+  }
+  companyEl.style.borderColor = '';
+
+  addBtn.disabled = true;
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'add', company, contact, email, stage, notes })
+    });
+    companyEl.value = '';
+    contactEl.value = '';
+    emailEl.value = '';
+    notesEl.value = '';
+    await load();
+  } catch (e) {
+    alert("Couldn't save — check your connection and try again.");
+  } finally {
+    addBtn.disabled = false;
+  }
+}
+
+async function updateStage(id, stage) {
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'update', id, stage })
+    });
+    await load();
+  } catch (e) {
+    alert("Couldn't update — check your connection and try again.");
+  }
+}
+
+async function updateNotes(id, notes) {
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'update', id, notes })
+    });
+  } catch (e) {
+    alert("Couldn't save notes — check your connection and try again.");
+  }
+}
+
+async function removeRow(id) {
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete', id })
+    });
+    await load();
+  } catch (e) {
+    alert("Couldn't remove — check your connection and try again.");
+  }
+}
+
+function render() {
+  const tbody = document.getElementById('tbody');
+  const table = document.getElementById('table');
+  const statusMsg = document.getElementById('statusMsg');
+  tbody.innerHTML = '';
+
+  if (rows.length === 0) {
+    statusMsg.textContent = 'No managers added yet.';
+    statusMsg.classList.remove('error');
+    statusMsg.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+
+  statusMsg.style.display = 'none';
+  table.style.display = 'table';
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    const dateLines = [];
+    if (r.sentDate) dateLines.push(`${STAGE_LABELS.sent}: ${r.sentDate}`);
+    if (r.respondedDate) dateLines.push(`${STAGE_LABELS.responded}: ${r.respondedDate}`);
+    if (r.pilotDate) dateLines.push(`${STAGE_LABELS.pilot}: ${r.pilotDate}`);
+    if (r.passedDate) dateLines.push(`${STAGE_LABELS.passed}: ${r.passedDate}`);
+
+    tr.innerHTML = `
+      <td>${escapeHtml(r.company)}</td>
+      <td>${escapeHtml(r.contact || '—')}</td>
+      <td>${escapeHtml(r.email || '—')}</td>
+      <td>
+        <select class="stage-select" onchange="updateStage('${r.id}', this.value)">
+          <option value="sent" ${r.stage==='sent'?'selected':''}>Sent email</option>
+          <option value="responded" ${r.stage==='responded'?'selected':''}>Responded</option>
+          <option value="pilot" ${r.stage==='pilot'?'selected':''}>Has pilot</option>
+          <option value="passed" ${r.stage==='passed'?'selected':''}>Passed</option>
+        </select>
+      </td>
+      <td class="actions"><button class="secondary" onclick="removeRow('${r.id}')">Remove</button></td>
+    `;
+    tbody.appendChild(tr);
+
+    const tr2 = document.createElement('tr');
+    tr2.className = 'detail-row';
+    tr2.innerHTML = `
+      <td colspan="5">
+        <div class="detail-grid">
+          <div class="dates">${dateLines.length ? dateLines.join('<br>') : 'No history yet'}</div>
+          <textarea placeholder="Notes" onblur="updateNotes('${r.id}', this.value)">${escapeHtml(r.notes || '')}</textarea>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr2);
+  });
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+load();
+</script>
+</body>
+</html>
