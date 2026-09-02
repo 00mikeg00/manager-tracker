@@ -84,6 +84,15 @@
       <button id="addBtn" onclick="addManager()">Add</button>
     </div>
 
+    <div class="add-row" style="margin-bottom:14px;">
+      <label style="font-size:13px; color:#6b6a65; align-self:center;">Sort by:</label>
+      <select id="mgrSort" onchange="renderManagers()">
+        <option value="recent">Most recent activity</option>
+        <option value="company">Company name (A–Z)</option>
+        <option value="status">Status</option>
+      </select>
+    </div>
+
     <div id="mgrStatus" class="status">Loading…</div>
     <table id="mgrTable" style="display:none;">
       <thead>
@@ -220,6 +229,28 @@ async function removeManager(id) {
   }
 }
 
+function getMostRecentDate(r) {
+  const dates = [r.flaggedDate, r.sentDate, r.respondedDate, r.pilotDate, r.passedDate]
+    .filter(Boolean)
+    .map(d => new Date(d).getTime())
+    .filter(t => !isNaN(t));
+  return dates.length ? Math.max(...dates) : 0;
+}
+
+function sortManagerRows(list) {
+  const sortBy = document.getElementById('mgrSort').value;
+  const STAGE_ORDER = { flagged: 0, sent: 1, responded: 2, pilot: 3, passed: 4 };
+  const sorted = [...list];
+  if (sortBy === 'recent') {
+    sorted.sort((a, b) => getMostRecentDate(b) - getMostRecentDate(a));
+  } else if (sortBy === 'company') {
+    sorted.sort((a, b) => a.company.localeCompare(b.company));
+  } else if (sortBy === 'status') {
+    sorted.sort((a, b) => (STAGE_ORDER[a.stage] ?? 99) - (STAGE_ORDER[b.stage] ?? 99));
+  }
+  return sorted;
+}
+
 function renderManagers() {
   const tbody = document.getElementById('mgrTbody');
   const table = document.getElementById('mgrTable');
@@ -237,7 +268,8 @@ function renderManagers() {
   statusMsg.style.display = 'none';
   table.style.display = 'table';
 
-  mgrRows.forEach(r => {
+  const sortedRows = sortManagerRows(mgrRows);
+  sortedRows.forEach(r => {
     const tr = document.createElement('tr');
     const dateLines = [];
     if (r.flaggedDate) dateLines.push(`${STAGE_LABELS.flagged}: ${r.flaggedDate}`);
