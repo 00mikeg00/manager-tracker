@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Splitting HQ</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Source+Serif+4:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --board: #2b2f28;
+    --board-line: #3a3f34;
+    --card: #f2ecd9;
+    --card-edge: #d8cfae;
+    --card-shadow: rgba(0,0,0,0.35);
+    --ink: #2a241c;
+    --ink-soft: #6b6152;
+    --accent: #b5482f;
+    --accent-soft: #d8b98a;
+    --lane-title: #ece6d4;
+    --ok: #6d9b6d;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: var(--board);
+    background-image: radial-gradient(rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 4px 4px;
+    color: var(--lane-title);
+    font-family: 'Source Serif 4', Georgia, serif;
+    overflow: hidden;
+  }
+  button, input, textarea{ font-family: inherit; }
+  #app{ display:flex; flex-direction:column; height:100vh; }
+
+  /* ---------- top bar ---------- */
+  header{
+    padding: 16px 28px 12px 28px;
+    border-bottom: 1px solid var(--board-line);
+    display:flex; align-items:center; justify-content:space-between;
+    flex-shrink:0;
+  }
+  .brand{ display:flex; align-items:baseline; gap:12px; cursor:pointer; }
+  .brand h1{ font-size: 1.3rem; margin:0; font-weight:600; letter-spacing:0.3px; }
+  .brand .sub{ font-size:0.78rem; color: var(--accent-soft); font-style:italic; }
+  .crumb{
+    font-family:'Special Elite', monospace; font-size:0.72rem; color:#9aa08e;
+  }
+  .crumb button{
+    background:none; border:none; color:#9aa08e; font-family:inherit; font-size:0.72rem;
+    cursor:pointer; padding:0; text-decoration:underline; text-underline-offset:2px;
+  }
+  .crumb button:hover{ color: var(--accent-soft); }
+
+  header .hdr-actions{ display:flex; align-items:center; gap:10px; position:relative; }
+  header .hdr-actions button{
+    background:none; border:1px solid var(--board-line); color:#9aa08e;
+    font-size:0.75rem; padding:5px 12px; cursor:pointer;
+  }
+  header .hdr-actions button:hover{ border-color:var(--accent-soft); color:var(--accent-soft); }
+  header .hdr-actions .dots{ display:flex; gap:3px; }
+  header .hdr-actions .dots span{ width:7px; height:7px; border-radius:50%; display:inline-block; }
+
+  .panel{
+    position:absolute; top:38px; right:0; z-index:30;
+    background: var(--card); border:1px solid var(--card-edge);
+    box-shadow: 3px 4px 0 var(--card-shadow);
+    width:250px; padding:12px; display:none;
+  }
+  .panel.open{ display:block; }
+  .panel h3{
+    margin:0 0 8px 0; font-size:0.78rem; color: var(--ink);
+    font-family:'Special Elite', monospace; font-weight:normal; letter-spacing:0.5px;
+  }
+  .row-item{ display:flex; align-items:center; gap:7px; margin-bottom:7px; }
+  .row-item input[type="color"]{
+    width:22px; height:22px; border:1px solid var(--card-edge); padding:0; background:none; cursor:pointer; flex-shrink:0;
+  }
+  .row-item input[type="text"]{
+    flex:1; min-width:0; border:none; border-bottom:1px solid var(--card-edge);
+    background:transparent; font-size:0.8rem; color: var(--ink); padding:2px 0;
+  }
+  .row-item input[type="text"]:focus{ outline:none; border-bottom-color:var(--accent); }
+  .row-item .row-del{
+    background:none; border:none; color:#a89a7d; font-size:0.7rem; cursor:pointer;
+    font-family:'Special Elite', monospace; flex-shrink:0;
+  }
+  .row-item .row-del:hover{ color:var(--accent); }
+  .add-row{
+    border: 1px dashed #b8ae90; background:transparent; color:#8a8071;
+    font-size:0.76rem; padding:5px 8px; cursor:pointer; width:100%; text-align:left; margin-top:2px;
+  }
+  .add-row:hover{ border-color:var(--accent); color:var(--accent); }
+
+  /* ---------- home: season / episode grid ---------- */
+  #homeView{ flex:1; overflow-y:auto; padding: 22px 32px 40px 32px; }
+  .season-block{ margin-bottom: 30px; }
+  .season-title{
+    font-family:'Special Elite', monospace; font-size:0.8rem; color: var(--accent-soft);
+    letter-spacing:1px; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid var(--board-line);
+  }
+  .episode-grid{
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap:14px;
+  }
+  .ep-card{
+    background: var(--card); border:1px solid var(--card-edge);
+    box-shadow: 2px 3px 0 var(--card-shadow);
+    padding: 12px 13px 11px 13px; cursor:pointer; position:relative;
+    transition: transform 0.1s ease;
+  }
+  .ep-card:hover{ transform: translateY(-2px); }
+  .ep-num{
+    font-family:'Special Elite', monospace; font-size:0.66rem; color: var(--ink-soft); letter-spacing:0.5px;
+  }
+  .ep-title{
+    font-size:0.92rem; font-weight:600; color: var(--ink); margin: 3px 0 10px 0;
+    min-height: 1.3em; line-height:1.3;
+    background:transparent; border:none; width:100%; padding:0; cursor:text;
+  }
+  .ep-title:focus{ outline:none; border-bottom:1px dashed var(--accent); }
+  .status-strip{ display:flex; gap:4px; }
+  .status-seg{
+    flex:1; height:6px; background: var(--card-edge); position:relative;
+  }
+  .status-labels{
+    display:flex; justify-content:space-between; margin-top:4px;
+    font-size:0.56rem; color:#a89a7d; letter-spacing:0.3px;
+  }
+
+  /* ---------- episode workspace ---------- */
+  #episodeView{ flex:1; display:none; flex-direction:column; overflow:hidden; }
+  .ep-head{
+    padding: 14px 28px 0 28px; flex-shrink:0;
+  }
+  .ep-head-title{
+    font-size:1.15rem; font-weight:600; color: var(--lane-title);
+    background:transparent; border:none; border-bottom:1px dashed transparent;
+    padding:0; width:100%; max-width:600px;
+  }
+  .ep-head-title:focus{ outline:none; border-bottom-color: var(--accent-soft); }
+  .tab-bar{ display:flex; align-items:center; gap:2px; margin-top:14px; }
+  .tab-btn{
+    background:none; border:none; border-bottom:2px solid transparent;
+    color:#9aa08e; font-size:0.84rem; padding:8px 16px; cursor:pointer;
+    display:flex; align-items:center; gap:6px;
+  }
+  .tab-btn .tab-dot{
+    width:7px; height:7px; border-radius:50%; background: var(--card-edge); flex-shrink:0;
+  }
+  .tab-btn:hover{ color: var(--accent-soft); }
+  .tab-btn.active{ color: var(--lane-title); border-bottom-color: var(--accent); }
+
+  .stage-bar{
+    display:flex; align-items:center; gap:8px; margin-left:auto; padding-right:4px;
+  }
+  .stage-bar label{ font-size:0.72rem; color:#9aa08e; }
+  .stage-select{
+    font-size:0.78rem; padding:4px 10px 4px 8px; border:1px solid var(--board-line);
+    background: var(--board); color: var(--lane-title); cursor:pointer;
+  }
+  .stage-select:focus{ outline:none; border-color: var(--accent-soft); }
+
+  .tab-content{ flex:1; overflow:hidden; display:flex; flex-direction:column; }
+  .text-tab{
+    flex:1; overflow-y:auto; padding: 24px 32px; display:flex; justify-content:center;
+  }
+  .text-tab textarea{
+    width:100%; max-width:720px; min-height:100%;
+    background: var(--card); border:1px solid var(--card-edge);
+    box-shadow: 2px 3px 0 var(--card-shadow);
+    color: var(--ink); font-family:'Source Serif 4', Georgia, serif; font-size:0.95rem;
+    line-height:1.6; padding: 22px 26px; resize:none;
+  }
+  .text-tab textarea:focus{ outline:none; }
+  .text-tab.premise textarea{ min-height:220px; }
+
+  .script-tab{
+    flex:1; overflow-y:auto; padding: 32px; display:flex; justify-content:center;
+  }
+  .script-card{
+    background: var(--card); border:1px solid var(--card-edge);
+    box-shadow: 2px 3px 0 var(--card-shadow);
+    padding: 24px 28px; max-width:520px; width:100%; height:fit-content; color: var(--ink);
+  }
+  .script-card h3{
+    margin:0 0 4px 0; font-size:1rem; font-family:'Special Elite', monospace; font-weight:normal;
+  }
+  .script-card p{ font-size:0.82rem; color: var(--ink-soft); margin:0 0 16px 0; line-height:1.5; }
+  .suggested-label{ font-size:0.68rem; color: var(--ink-soft); font-family:'Special Elite', monospace; letter-spacing:0.4px; margin-bottom:5px; }
+  .suggested-path{
+    font-family:'Special Elite', monospace; font-size:0.76rem; color: var(--ink);
+    background: rgba(0,0,0,0.04); border:1px solid var(--card-edge); padding:8px 10px;
+    word-break: break-all; line-height:1.4; margin-bottom:8px;
+  }
+  .script-divider{ border-top: 1px dashed var(--card-edge); margin: 16px 0 14px 0; }
+  .script-path-row{ display:flex; gap:8px; margin-bottom:10px; }
+  .script-path-row input{
+    flex:1; border:1px solid var(--card-edge); background:#fff; padding:8px 10px;
+    font-size:0.82rem; color: var(--ink); font-family: 'Special Elite', monospace;
+  }
+  .script-path-row input:focus{ outline:none; border-color: var(--accent); }
+  .script-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .script-actions a, .script-actions button{
+    font-size:0.8rem; padding:7px 14px; border:1px solid var(--ink-soft); background:transparent;
+    color: var(--ink); cursor:pointer; text-decoration:none; display:inline-block;
+  }
+  .script-actions a:hover, .script-actions button:hover{ border-color: var(--accent); color: var(--accent); }
+  .setup-note{
+    display:none; margin-top:14px; padding:12px 14px; background: rgba(0,0,0,0.04);
+    border:1px solid var(--card-edge); font-size:0.78rem; line-height:1.5; color: var(--ink-soft);
+  }
+  .setup-note.open{ display:block; }
+  .setup-note p{ margin:0 0 8px 0; }
+  .setup-note code{
+    background: rgba(0,0,0,0.08); padding:1px 4px; font-family:'Special Elite', monospace; font-size:0.76rem; color: var(--ink);
+  }
+  .setup-note button{
+    font-size:0.76rem; padding:5px 12px; border:1px solid var(--ink-soft); background:transparent; color: var(--ink); cursor:pointer;
+  }
+  .setup-note button:hover{ border-color: var(--accent); color: var(--accent); }
+  .script-empty{ font-size:0.8rem; color: var(--ink-soft); font-style:italic; }
+
+  /* ---------- outline tab (embedded outliner) ---------- */
+  .outline-tab{ flex:1; display:flex; overflow:hidden; }
+  .outline-toolbar{
+    padding: 10px 28px 0 28px; display:flex; justify-content:flex-end; gap:10px; flex-shrink:0;
+  }
+  .outline-toolbar button{
+    background:none; border:1px solid var(--board-line); color:#9aa08e;
+    font-size:0.75rem; padding:5px 12px; cursor:pointer;
+  }
+  .outline-toolbar button:hover{ border-color:var(--accent-soft); color:var(--accent-soft); }
+  .outline-toolbar button.active{ border-color: var(--accent); color: var(--accent-soft); background:rgba(181,72,47,0.12); }
+
+  #board{ flex:1; overflow-x:auto; overflow-y:hidden; display:flex; align-items:stretch; padding: 14px 20px 16px 20px; }
+  .lane{ flex: 0 0 258px; display:flex; flex-direction:column; border-right: 1px solid var(--board-line); padding: 0 16px; height:100%; }
+  .lane:last-child{ border-right:none; }
+  .lane-head{ flex-shrink:0; padding-bottom:10px; margin-bottom:12px; border-bottom: 2px solid var(--accent); }
+  .lane-head .num{ font-family:'Special Elite', monospace; font-size:0.66rem; color: var(--accent-soft); letter-spacing:1px; }
+  .lane-head .name{ font-size: 0.98rem; font-weight:600; color: var(--lane-title); margin-top:2px; }
+  .lane-head .hint{ font-size:0.72rem; color:#8a8f80; margin-top:3px; line-height:1.3; font-style: italic; }
+  .lane-head .pgtotal{ font-family:'Special Elite', monospace; font-size:0.64rem; color: var(--accent-soft); margin-top:4px; }
+  .lane-cards{ flex:1; overflow-y:auto; overflow-x:hidden; padding: 2px 2px 8px 2px; display:flex; flex-direction:column; gap:10px; }
+  .lane-cards::-webkit-scrollbar{ width:6px; }
+  .lane-cards::-webkit-scrollbar-thumb{ background: var(--board-line); border-radius:3px; }
+
+  .card{
+    background: var(--card); border: 1px solid var(--card-edge); border-left: 4px solid var(--card-edge);
+    box-shadow: 2px 3px 0 var(--card-shadow); padding: 10px 12px 8px 12px; position:relative;
+    cursor:grab; transition: transform 0.12s ease, border-left-color 0.15s ease;
+  }
+  .card::before{
+    content:""; position:absolute; left:0; right:0; top:22px; height:1px;
+    background: repeating-linear-gradient(to right, var(--card-edge) 0 6px, transparent 6px 10px); opacity:0.6;
+  }
+  .card.dragging{ opacity:0.35; }
+  .card.drag-over{ transform: translateY(4px); }
+  .card-tag-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:5px; min-height:14px; }
+  .card-tag-select{
+    font-family:'Special Elite', monospace; font-size:0.6rem; letter-spacing:0.4px; color: var(--ink-soft);
+    background:transparent; border:none; cursor:pointer; padding:0; max-width:150px;
+  }
+  .card-tag-select:focus{ outline:none; }
+  .card-pages{ font-family:'Special Elite', monospace; font-size:0.6rem; color: var(--ink-soft); background:transparent; border:none; width:34px; text-align:right; flex-shrink:0; }
+  .card-pages:focus{ outline:none; color: var(--ink); }
+  .card-pages-label{ font-size:0.58rem; color:#a89a7d; margin-left:2px; }
+  .card-chars{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; align-items:center; }
+  .char-chip{ font-size:0.6rem; background: rgba(0,0,0,0.06); color: var(--ink-soft); padding: 1px 6px; border-radius:9px; cursor:pointer; border:1px solid var(--card-edge); }
+  .char-chip:hover{ border-color:var(--accent); color:var(--accent); }
+  .char-add-btn{ font-size:0.6rem; color:#a89a7d; background:none; border:1px dashed var(--card-edge); padding:1px 6px; border-radius:9px; cursor:pointer; }
+  .char-add-btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .char-popover{
+    position:absolute; z-index:40; background: var(--card); border:1px solid var(--card-edge);
+    box-shadow: 3px 4px 0 var(--card-shadow); padding:8px; min-width:150px; max-height:180px; overflow-y:auto;
+  }
+  .char-popover label{ display:flex; align-items:center; gap:6px; font-size:0.75rem; color: var(--ink); padding:3px 2px; cursor:pointer; }
+  .char-popover .cp-empty{ font-size:0.72rem; color:var(--ink-soft); font-style:italic; padding:2px; }
+  .card-title{
+    font-family:'Special Elite', monospace; font-size:0.84rem; color: var(--ink); background:transparent; border:none;
+    width:100%; resize:none; overflow:hidden; line-height:1.3; padding-top:1px; margin-bottom:6px;
+  }
+  .card-title:focus{ outline:none; }
+  .card-body{
+    font-size:0.8rem; color: var(--ink-soft); width:100%; background:transparent; border:none;
+    resize:none; line-height:1.42; min-height:34px;
+  }
+  .card-body:focus{ outline:none; color: var(--ink); }
+  .card-foot{ display:flex; justify-content:flex-end; align-items:center; margin-top:4px; }
+  .card-beat-badge{ font-size:0.62rem; font-family:'Special Elite', monospace; color:#a89a7d; margin-right:auto; }
+  .card-del{ background:none; border:none; color:#a89a7d; font-size:0.66rem; cursor:pointer; font-family:'Special Elite', monospace; opacity:0; transition: opacity 0.15s; }
+  .card:hover .card-del{ opacity:0.75; }
+  .card-del:hover{ color: var(--accent); opacity:1; }
+  .add-card{
+    border: 1px dashed #565c4e; background:transparent; color:#8a8f80; font-size:0.78rem;
+    padding: 8px 10px; cursor:pointer; text-align:left; flex-shrink:0; margin-top:2px;
+  }
+  .add-card:hover{ border-color: var(--accent-soft); color: var(--accent-soft); }
+
+  #outlineDocWrap{ flex:1; display:none; overflow-y:auto; background:#ece6d4; color: var(--ink); }
+  #outlineDocWrap.open{ display:block; }
+  #outlineDoc{ max-width: 800px; margin:0 auto; padding: 30px 44px 50px 44px; font-size:0.9rem; line-height:1.55; }
+  #outlineDoc .doc-total{ font-size:0.76rem; color: var(--ink-soft); margin-bottom:18px; font-style:italic; }
+  #outlineDoc .beat-heading{ font-weight:700; margin: 24px 0 8px 0; font-size:0.92rem; letter-spacing: 0.4px; display:flex; justify-content:space-between; align-items:baseline; padding-left: 112px; }
+  #outlineDoc .beat-heading .beat-pg{ font-weight:400; font-size:0.74rem; color: var(--ink-soft); font-style:italic; }
+  #outlineDoc .beat-heading:first-of-type{ margin-top:0; }
+  #outlineDoc .outline-list{ display:flex; flex-direction:column; }
+  #outlineDoc .outline-row{ display:flex; align-items:flex-start; gap:10px; margin-bottom:9px; }
+  #outlineDoc .oc-charcol{ flex: 0 0 96px; text-align:right; padding-top:1px; font-size:0.68rem; color: var(--accent); font-style:italic; line-height:1.35; }
+  #outlineDoc .oc-num{ flex: 0 0 20px; font-weight:700; padding-top:1px; }
+  #outlineDoc .oc-content{ flex:1; padding-left:4px; }
+  #outlineDoc .oc-title{ font-weight:700; }
+  #outlineDoc .oc-body{ color: var(--ink); }
+  #outlineDoc .oc-dash{ color: var(--ink-soft); }
+  #outlineDoc .oc-meta{ display:block; font-size:0.74rem; color: var(--ink-soft); font-style:italic; margin-top:1px; }
+  #outlineDoc .beat-empty{ color: var(--ink-soft); font-style:italic; font-size:0.83rem; margin-left:112px; }
+  #outlineDoc [contenteditable]{ border-bottom: 1px dashed transparent; cursor:text; }
+  #outlineDoc [contenteditable]:hover{ border-bottom-color: var(--card-edge); }
+  #outlineDoc [contenteditable]:focus{ outline:none; border-bottom-color: var(--accent); }
+  #outlineDoc .oc-pages{ font-family:'Special Elite', monospace; font-size:0.7rem; color: var(--ink-soft); background:transparent; border:none; border-bottom:1px dashed transparent; width:32px; }
+  #outlineDoc .oc-pages:hover{ border-bottom-color: var(--card-edge); }
+  #outlineDoc .oc-pages:focus{ outline:none; border-bottom-color: var(--accent); color: var(--ink); }
+  #outlineDoc .oc-beats{ margin: 5px 0 2px 0; }
+  #outlineDoc .oc-beat-row{ display:flex; align-items:flex-start; gap:6px; margin-bottom:4px; font-size:0.83rem; }
+  #outlineDoc .oc-beat-letter{ font-weight:700; color: var(--ink-soft); flex-shrink:0; width:18px; padding-top:1px; }
+  #outlineDoc .oc-beat-text{ flex:1; color: var(--ink); line-height:1.4; }
+  #outlineDoc .oc-beat-del{ background:none; border:none; color:#b3a685; font-size:0.66rem; cursor:pointer; flex-shrink:0; opacity:0; transition:opacity 0.15s; }
+  #outlineDoc .oc-beat-row:hover .oc-beat-del{ opacity:0.75; }
+  #outlineDoc .oc-beat-del:hover{ color: var(--accent); opacity:1; }
+  #outlineDoc .add-beat-btn{ font-size:0.72rem; color:#8a8071; background:none; border:none; cursor:pointer; padding: 0 0 0 24px; }
+  #outlineDoc .add-beat-btn:hover{ color: var(--accent); }
+  #outlineDoc .oc-card-del{ background:none; border:none; color:#c2b596; font-size:0.66rem; cursor:pointer; font-family:'Special Elite', monospace; opacity:0; transition:opacity 0.15s; margin-left:8px; }
+  #outlineDoc .outline-row:hover .oc-card-del{ opacity:0.7; }
+  #outlineDoc .oc-card-del:hover{ color: var(--accent); opacity:1; }
+
+  footer{
+    flex-shrink:0; padding: 8px 28px; border-top:1px solid var(--board-line);
+    font-size:0.72rem; color:#71766a; display:flex; justify-content:space-between; align-items:center;
+  }
+  footer button{
+    background:none; border:1px solid var(--board-line); color:#9aa08e;
+    font-size:0.72rem; padding:4px 10px; cursor:pointer;
+  }
+  footer button:hover{ border-color:var(--accent-soft); color:var(--accent-soft); }
+  footer button:disabled{ opacity:0.4; cursor:default; border-color:var(--board-line); color:#71766a; }
+  footer button + button{ margin-left:8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand" id="brandHome">
+      <h1 id="showTitle">Splitting</h1>
+      <span class="sub" id="crumbLine">Season / Episode HQ</span>
+    </div>
+    <div class="hdr-actions">
+      <button id="charBtn">Characters</button>
+      <div class="panel" id="charPanel">
+        <h3>CHARACTERS</h3>
+        <div id="charList"></div>
+        <button class="add-row" id="addCharBtn">+ Add character</button>
+      </div>
+      <button id="legendBtn"><span class="dots" id="legendDots"></span> Color codes</button>
+      <div class="panel" id="legendPanel">
+        <h3>COLOR CODES</h3>
+        <div id="tagList"></div>
+        <button class="add-row" id="addTagBtn">+ Add color code</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- HOME: season / episode grid -->
+  <div id="homeView"></div>
+
+  <!-- EPISODE WORKSPACE -->
+  <div id="episodeView">
+    <div class="ep-head">
+      <input id="epHeadTitle" class="ep-head-title" spellcheck="false"/>
+      <div class="tab-bar">
+        <button class="tab-btn" data-tab="premise"><span class="tab-dot" data-dot="premise"></span>Premise</button>
+        <button class="tab-btn" data-tab="treatment"><span class="tab-dot" data-dot="treatment"></span>Treatment</button>
+        <button class="tab-btn" data-tab="outline"><span class="tab-dot" data-dot="outline"></span>Outline</button>
+        <button class="tab-btn" data-tab="script"><span class="tab-dot" data-dot="script"></span>Script</button>
+        <div class="stage-bar">
+          <label for="stageSelect">Stage</label>
+          <select id="stageSelect" class="stage-select"></select>
+        </div>
+      </div>
+    </div>
+    <div class="tab-content">
+      <div class="text-tab premise" data-panel="premise">
+        <textarea id="premiseText" placeholder="A paragraph or two — the logline, the hook, who this episode is about and what throws their world off."></textarea>
+      </div>
+      <div class="text-tab" data-panel="treatment" style="display:none;">
+        <textarea id="treatmentText" placeholder="The scene-by-scene prose treatment — walk through the episode in order, timeline by timeline."></textarea>
+      </div>
+      <div class="outline-tab" data-panel="outline" style="display:none;">
+        <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+          <div class="outline-toolbar">
+            <button id="viewToggleBtn">Outline view</button>
+          </div>
+          <div id="board"></div>
+          <div id="outlineDocWrap"><div id="outlineDoc"></div></div>
+        </div>
+      </div>
+      <div class="script-tab" data-panel="script" style="display:none;">
+        <div class="script-card">
+          <h3>SCRIPT — FINAL DRAFT</h3>
+          <p>Scripts live outside this app, in Final Draft. Plain links can't launch it — browsers just show the file's raw contents. "Open in Final Draft" uses a small one-time helper (see setup below) to actually launch it; until that's installed, use "Copy path" and paste it into Final Draft's Open dialog.</p>
+          <div class="suggested-path-row">
+            <div class="suggested-label">Expected folder for this episode</div>
+            <div class="suggested-path" id="suggestedPath"></div>
+            <div class="script-actions">
+              <button id="copySuggestedBtn">Copy folder path</button>
+              <button id="useSuggestedBtn">Use this path</button>
+            </div>
+          </div>
+          <div class="script-divider"></div>
+          <div class="suggested-label">Script path</div>
+          <div class="script-path-row">
+            <input id="scriptPathInput" type="text" placeholder="D:\OneDrive\...\06_Script\101.fdx" spellcheck="false"/>
+          </div>
+          <div class="script-actions">
+            <button id="browseScriptBtn">Browse for script…</button>
+            <button id="copyPathBtn">Copy path</button>
+            <a id="tryOpenLink" href="#" target="_blank">Open in Final Draft</a>
+            <button id="setupHelperBtn" type="button">Set up "Open in Final Draft"…</button>
+          </div>
+          <div class="setup-note" id="setupNote">
+            <p>One-time setup: put <code>open_file.vbs</code> in <code>C:\SplittingHQ\</code>, then double-click <code>install_protocol.reg</code> and click through the prompts (no admin rights needed). Full steps are in the README shared in chat.</p>
+            <p>The first time you click "Open in Final Draft" afterward, your browser will ask permission once — check "always allow" and it'll launch straight into Final Draft from then on.</p>
+            <button id="closeSetupNote" type="button">Got it</button>
+          </div>
+          <input type="file" id="scriptFileInput" accept=".fdx" style="display:none;"/>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span id="footerHint">Splitting HQ · autosaves</span>
+    <span>
+      <button id="undoBtn" title="Undo (Ctrl/Cmd+Z)">Undo</button>
+      <button id="resetBtn">Reset everything</button>
+    </span>
+  </footer>
+</div>
+
+<script>
+const LANES = [
+  { id:'a1',   name:'Act 1 — Setup',            hint:'World, hero, the ordinary life before it breaks.' },
+  { id:'eoa1', name:'End of Act 1',              hint:'The call to adventure. No turning back.' },
+  { id:'a2fg', name:'Act 2 — Fun and Games',      hint:'The promise of the premise. New world, new rules.' },
+  { id:'mid',  name:'Act 2 — Midpoint',           hint:'False victory or false defeat. Stakes raise.' },
+  { id:'eoa2', name:'End of Act 2 — Oh Shit',     hint:'All is lost. The lowest point.' },
+  { id:'a3',   name:'Act 3 — Response',           hint:'The hero acts on what they\u2019ve learned.' },
+  { id:'eoa3', name:'End of Act 3',               hint:'Climax and resolution. The new normal.' },
+];
+const SEASONS = 3;
+const EPISODES_PER_SEASON = 8;
+const DEFAULT_TAGS = [
+  { id: 't1', name: 'Original Timeline', color: '#3f7d3f' },
+  { id: 't2', name: 'Investigative Timeline', color: '#7ec4e0' },
+  { id: 't3', name: 'Corrective Timeline', color: '#9b2f5e' },
+];
+
+let state = null;
+let currentEpId = null;
+let currentTab = 'premise';
+let outlineMode = false;
+let dragCardId = null;
+
+const STAGES = ['premise', 'treatment', 'outline', 'script'];
+const STAGE_STATUSES = [
+  { id: 'none',     label: 'No status',  color: '#d8cfae' },
+  { id: 'progress', label: 'In Progress', color: '#d9a13f' },
+  { id: 'retakes',  label: 'Retakes',    color: '#b5482f' },
+  { id: 'done',     label: 'Completed',  color: '#5f8f5f' },
+];
+function stageStatusInfo(id){
+  return STAGE_STATUSES.find(s => s.id === id) || STAGE_STATUSES[0];
+}
+function emptyStageStatus(){
+  return { premise: 'none', treatment: 'none', outline: 'none', script: 'none' };
+}
+
+function uid(prefix){ return (prefix||'c') + Math.random().toString(36).slice(2, 10); }
+
+function emptyLanes(){
+  const lanes = {};
+  LANES.forEach(l => lanes[l.id] = []);
+  return lanes;
+}
+
+function emptyEpisode(season, ep){
+  return {
+    id: uid('ep'),
+    season, episode: ep,
+    title: '',
+    premise: '', treatment: '', scriptPath: '',
+    stageStatus: emptyStageStatus(),
+    lanes: emptyLanes()
+  };
+}
+
+function emptyState(){
+  const episodes = [];
+  for(let s = 1; s <= SEASONS; s++){
+    for(let e = 1; e <= EPISODES_PER_SEASON; e++){
+      episodes.push(emptyEpisode(s, e));
+    }
+  }
+  return { title: 'Splitting', characters: [], tags: DEFAULT_TAGS.map(t => ({...t})), episodes };
+}
+
+function currentEpisode(){
+  return state.episodes.find(e => e.id === currentEpId) || null;
+}
+
+/* ---------------- page notation (eighths) ---------------- */
+function pagesToDecimal(val){
+  val = Number(val) || 0;
+  if(val === 0) return 0;
+  const whole = Math.trunc(val);
+  const fracStr = Math.abs(val).toFixed(2).split('.')[1] || '0';
+  const eighths = parseInt(fracStr[0], 10) || 0;
+  const sign = val < 0 ? -1 : 1;
+  return sign * (Math.abs(whole) + eighths / 8);
+}
+function decimalToEighthsNotation(decimal){
+  if(!decimal) return 0;
+  const sign = decimal < 0 ? -1 : 1;
+  decimal = Math.abs(decimal);
+  let whole = Math.floor(decimal + 1e-9);
+  let eighths = Math.round((decimal - whole) * 8);
+  if(eighths >= 8){ whole += 1; eighths = 0; }
+  const notation = whole + (eighths ? eighths / 10 : 0);
+  return sign * Math.round(notation * 100) / 100;
+}
+function sumPages(cards){
+  const decimalTotal = cards.reduce((sum, c) => sum + pagesToDecimal(c.pages), 0);
+  return decimalToEighthsNotation(decimalTotal);
+}
+function sumPagesAllLanes(ep){
+  const decimalTotal = LANES.reduce((sum, l) => sum + ep.lanes[l.id].reduce((s,c) => s + pagesToDecimal(c.pages), 0), 0);
+  return decimalToEighthsNotation(decimalTotal);
+}
+function formatPages(notation){
+  if(!notation) return '';
+  return (Math.round(notation * 100) / 100).toString().replace(/\.0$/, '');
+}
+
+function beatLetter(i){
+  let n = i + 1, s = '';
+  while(n > 0){
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+/* ---------------- persistence (Google Sheet via Apps Script) ---------------- */
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwYQkvdhqiYF9EzXWVhYS8QKAlMDOpbCUENmojQdeOyz29voMtMDPDrBhNX3gcCPw_m/exec';
+
+function apiToState(api){
+  const st = emptyState();
+  st.title = (api.meta && api.meta.title) || 'Splitting';
+  st.characters = (api.characters || []).map(c => ({ id: c.id, name: c.name || '' }));
+  st.tags = (api.tags || []).length
+    ? api.tags.map(t => ({ id: t.id, name: t.name || '', color: t.color || '#b5482f' }))
+    : DEFAULT_TAGS.map(t => ({...t}));
+
+  const byKey = {};
+  (api.episodes || []).forEach(ep => { byKey[ep.season + ':' + ep.episode] = ep; });
+
+  st.episodes = st.episodes.map(placeholder => {
+    const found = byKey[placeholder.season + ':' + placeholder.episode];
+    if(!found) return placeholder;
+    const lanes = emptyLanes();
+    if(found.lanes){
+      LANES.forEach(l => {
+        if(Array.isArray(found.lanes[l.id])){
+          lanes[l.id] = found.lanes[l.id].map(c => ({
+            id: c.id, title: c.title || '', body: c.body || '',
+            tagId: c.tagId || null,
+            characterIds: Array.isArray(c.characterIds) ? c.characterIds : [],
+            pages: typeof c.pages === 'number' ? c.pages : 0,
+            beats: Array.isArray(c.beats) ? c.beats : []
+          }));
+        }
+      });
+    }
+    return {
+      id: found.id || placeholder.id,
+      season: found.season, episode: found.episode,
+      title: found.title || '',
+      premise: found.premise || '',
+      treatment: found.treatment || '',
+      scriptPath: found.scriptPath || '',
+      stageStatus: found.stageStatus || emptyStageStatus(),
+      lanes
+    };
+  });
+
+  return st;
+}
+
+async function load(){
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, { method: 'GET' });
+    const api = await res.json();
+    if(api && (api.episodes || api.characters || api.tags)){
+      state = apiToState(api);
+      if(!api.episodes || api.episodes.length === 0){
+        // Empty sheet — seed it with the blank 24-episode structure.
+        await pushFullState();
+      }
+    } else {
+      state = emptyState();
+    }
+    setSyncStatus('Synced', false);
+  } catch(e){
+    console.error('load failed', e);
+    state = emptyState();
+    setSyncStatus('Couldn\u2019t reach the sheet \u2014 working offline', true);
+  }
+}
+
+function setSyncStatus(text, isError){
+  const el = document.getElementById('footerHint');
+  if(!el) return;
+  el.textContent = text;
+  el.style.color = isError ? 'var(--accent)' : '';
+}
+
+async function pushFullState(){
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'full', data: state })
+  });
+  const result = await res.json();
+  if(!result.ok) throw new Error(result.error || 'save failed');
+}
+
+let saveTimer = null;
+const UNDO_LIMIT = 60;
+let undoStack = [];
+let lastSnapshot = null;
+
+function save(){
+  clearTimeout(saveTimer);
+  setSyncStatus('Saving\u2026', false);
+  saveTimer = setTimeout(async () => {
+    try{
+      const json = JSON.stringify(state);
+      if(lastSnapshot !== null && lastSnapshot !== json){
+        undoStack.push(lastSnapshot);
+        if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+      }
+      lastSnapshot = json;
+      await pushFullState();
+      setSyncStatus('Splitting HQ \u00b7 synced to Google Sheet', false);
+      updateUndoBtn();
+    } catch(e){
+      console.error('save failed', e);
+      setSyncStatus('Sync failed \u2014 will retry on next change', true);
+    }
+  }, 600);
+}
+
+async function undo(){
+  if(undoStack.length === 0) return;
+  clearTimeout(saveTimer);
+  const prev = undoStack.pop();
+  state = JSON.parse(prev);
+  lastSnapshot = prev;
+  try{ await pushFullState(); setSyncStatus('Splitting HQ \u00b7 synced to Google Sheet', false); }
+  catch(e){ console.error('undo save failed', e); setSyncStatus('Sync failed \u2014 will retry on next change', true); }
+  renderAll();
+  updateUndoBtn();
+}
+function updateUndoBtn(){
+  const btn = document.getElementById('undoBtn');
+  if(btn) btn.disabled = undoStack.length === 0;
+}
+
+/* ---------------- top-level render ---------------- */
+function renderAll(){
+  renderLegendDots();
+  renderTagList();
+  renderCharList();
+  document.getElementById('showTitle').textContent = state.title || 'Splitting';
+  if(currentEpId){
+    renderEpisodeView();
+  } else {
+    renderHome();
+  }
+}
+
+function goHome(){
+  currentEpId = null;
+  document.getElementById('homeView').style.display = 'block';
+  document.getElementById('episodeView').style.display = 'none';
+  document.getElementById('crumbLine').textContent = 'Season / Episode HQ';
+  renderHome();
+}
+
+function openEpisode(epId){
+  currentEpId = epId;
+  currentTab = 'premise';
+  document.getElementById('homeView').style.display = 'none';
+  document.getElementById('episodeView').style.display = 'flex';
+  renderEpisodeView();
+}
+
+document.getElementById('brandHome').addEventListener('click', goHome);
+
+/* ---------------- HOME VIEW ---------------- */
+function episodeStatus(ep){
+  return STAGES.map(s => ep.stageStatus[s] || 'none');
+}
+
+function renderHome(){
+  const home = document.getElementById('homeView');
+  home.innerHTML = '';
+
+  for(let s = 1; s <= SEASONS; s++){
+    const block = document.createElement('div');
+    block.className = 'season-block';
+
+    const title = document.createElement('div');
+    title.className = 'season-title';
+    title.textContent = 'SEASON ' + s;
+    block.appendChild(title);
+
+    const grid = document.createElement('div');
+    grid.className = 'episode-grid';
+
+    state.episodes.filter(e => e.season === s).sort((a,b) => a.episode - b.episode).forEach(ep => {
+      grid.appendChild(buildEpisodeCard(ep));
+    });
+
+    block.appendChild(grid);
+    home.appendChild(block);
+  }
+}
+
+function buildEpisodeCard(ep){
+  const card = document.createElement('div');
+  card.className = 'ep-card';
+
+  const num = document.createElement('div');
+  num.className = 'ep-num';
+  num.textContent = `S${String(ep.season).padStart(2,'0')}E${String(ep.episode).padStart(2,'0')}`;
+
+  const titleInput = document.createElement('input');
+  titleInput.className = 'ep-title';
+  titleInput.value = ep.title;
+  titleInput.placeholder = 'Untitled episode';
+  titleInput.spellcheck = false;
+  titleInput.addEventListener('click', e => e.stopPropagation());
+  titleInput.addEventListener('input', () => { ep.title = titleInput.value; save(); });
+
+  const strip = document.createElement('div');
+  strip.className = 'status-strip';
+  const status = episodeStatus(ep);
+  status.forEach(statusId => {
+    const seg = document.createElement('div');
+    seg.className = 'status-seg';
+    seg.style.background = stageStatusInfo(statusId).color;
+    strip.appendChild(seg);
+  });
+
+  const labels = document.createElement('div');
+  labels.className = 'status-labels';
+  ['Prem','Treat','Out','Scr'].forEach(l => {
+    const s = document.createElement('span');
+    s.textContent = l;
+    labels.appendChild(s);
+  });
+
+  card.appendChild(num);
+  card.appendChild(titleInput);
+  card.appendChild(strip);
+  card.appendChild(labels);
+
+  card.addEventListener('click', () => openEpisode(ep.id));
+  return card;
+}
+
+/* ---------------- EPISODE WORKSPACE ---------------- */
+function renderEpisodeView(){
+  const ep = currentEpisode();
+  if(!ep){ goHome(); return; }
+
+  document.getElementById('crumbLine').textContent =
+    `S${String(ep.season).padStart(2,'0')}E${String(ep.episode).padStart(2,'0')}${ep.title ? ' — ' + ep.title : ''}`;
+
+  const headTitle = document.getElementById('epHeadTitle');
+  headTitle.value = ep.title;
+  headTitle.placeholder = `S${ep.season}E${ep.episode} — Untitled episode`;
+  headTitle.oninput = () => { ep.title = headTitle.value; save(); };
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === currentTab);
+    btn.onclick = () => switchTab(btn.dataset.tab);
+  });
+  document.querySelectorAll('.tab-content [data-panel]').forEach(panel => {
+    panel.style.display = panel.dataset.panel === currentTab ? (panel.classList.contains('outline-tab') ? 'flex' : 'flex') : 'none';
+  });
+  renderTabDots(ep);
+  renderStageSelect(ep);
+
+  const premiseEl = document.getElementById('premiseText');
+  premiseEl.value = ep.premise;
+  premiseEl.oninput = () => { ep.premise = premiseEl.value; save(); };
+
+  const treatmentEl = document.getElementById('treatmentText');
+  treatmentEl.value = ep.treatment;
+  treatmentEl.oninput = () => { ep.treatment = treatmentEl.value; save(); };
+
+  const scriptInput = document.getElementById('scriptPathInput');
+  scriptInput.value = ep.scriptPath;
+  scriptInput.oninput = () => {
+    ep.scriptPath = scriptInput.value;
+    save();
+    updateScriptLink(ep);
+  };
+  updateScriptLink(ep);
+  document.getElementById('copyPathBtn').onclick = async () => {
+    try{ await navigator.clipboard.writeText(ep.scriptPath || ''); } catch(e){}
+  };
+
+  const suggested = suggestedScriptFolder(ep);
+  document.getElementById('suggestedPath').textContent = suggested;
+  document.getElementById('copySuggestedBtn').onclick = async () => {
+    try{ await navigator.clipboard.writeText(suggested); } catch(e){}
+  };
+  document.getElementById('useSuggestedBtn').onclick = () => {
+    ep.scriptPath = suggested + '\\';
+    scriptInput.value = ep.scriptPath;
+    scriptInput.focus();
+    scriptInput.setSelectionRange(ep.scriptPath.length, ep.scriptPath.length);
+    save();
+    updateScriptLink(ep);
+  };
+
+  const fileInput = document.getElementById('scriptFileInput');
+  document.getElementById('browseScriptBtn').onclick = () => fileInput.click();
+  fileInput.value = '';
+  fileInput.onchange = () => {
+    if(!fileInput.files || !fileInput.files.length) return;
+    const filename = fileInput.files[0].name;
+    ep.scriptPath = suggested + '\\' + filename;
+    scriptInput.value = ep.scriptPath;
+    save();
+    updateScriptLink(ep);
+  };
+
+  document.getElementById('setupHelperBtn').onclick = () => {
+    document.getElementById('setupNote').classList.toggle('open');
+  };
+  document.getElementById('closeSetupNote').onclick = () => {
+    document.getElementById('setupNote').classList.remove('open');
+  };
+
+  renderBoard(ep);
+}
+
+function switchTab(tab){
+  currentTab = tab;
+  renderEpisodeView();
+}
+
+function renderTabDots(ep){
+  STAGES.forEach(s => {
+    const dot = document.querySelector(`.tab-dot[data-dot="${s}"]`);
+    if(dot) dot.style.background = stageStatusInfo(ep.stageStatus[s]).color;
+  });
+}
+
+function renderStageSelect(ep){
+  const select = document.getElementById('stageSelect');
+  select.innerHTML = '';
+  STAGE_STATUSES.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.label;
+    if(s.id === (ep.stageStatus[currentTab] || 'none')) opt.selected = true;
+    select.appendChild(opt);
+  });
+  const info = stageStatusInfo(ep.stageStatus[currentTab]);
+  select.style.borderColor = info.color;
+  select.style.color = info.id === 'none' ? 'var(--lane-title)' : info.color;
+  select.onchange = () => {
+    ep.stageStatus[currentTab] = select.value;
+    save();
+    renderTabDots(ep);
+    renderStageSelect(ep);
+  };
+}
+
+function seasonEpisodeCode(ep){
+  return `${ep.season}${String(ep.episode).padStart(2,'0')}`;
+}
+
+function suggestedScriptFolder(ep){
+  return `D:\\OneDrive\\Development OVERflow\\02 Television\\Splitting\\04_Episodes\\Season ${ep.season}\\${seasonEpisodeCode(ep)}\\06_Script`;
+}
+
+function pathToProtocolUrl(path){
+  path = path.trim();
+  if(!path) return '';
+  return 'splittinghq://open?path=' + encodeURIComponent(path);
+}
+
+function updateScriptLink(ep){
+  const link = document.getElementById('tryOpenLink');
+  const path = ep.scriptPath.trim();
+  if(path){
+    link.href = pathToProtocolUrl(path);
+    link.style.opacity = '1';
+    link.style.pointerEvents = 'auto';
+  } else {
+    link.href = '#';
+    link.style.opacity = '0.4';
+    link.style.pointerEvents = 'none';
+  }
+}
+
+/* ---------------- OUTLINE: card board ---------------- */
+function autoGrow(el){
+  el.style.height = 'auto';
+  el.style.height = (el.scrollHeight) + 'px';
+}
+
+function renderBoard(ep){
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+
+  LANES.forEach((lane, idx) => {
+    const cards = ep.lanes[lane.id];
+    const lanePages = sumPages(cards);
+
+    const laneEl = document.createElement('div');
+    laneEl.className = 'lane';
+    laneEl.dataset.laneId = lane.id;
+    laneEl.innerHTML = `
+      <div class="lane-head">
+        <div class="num">BEAT ${idx+1}</div>
+        <div class="name">${lane.name}</div>
+        <div class="hint">${lane.hint}</div>
+        <div class="pgtotal">${lanePages ? formatPages(lanePages) + ' pg' : ''}</div>
+      </div>
+      <div class="lane-cards" data-lane-id="${lane.id}"></div>
+      <button class="add-card" data-lane-id="${lane.id}">+ Add card</button>
+    `;
+
+    const cardsEl = laneEl.querySelector('.lane-cards');
+    cards.forEach(card => cardsEl.appendChild(renderCard(ep, lane.id, card)));
+
+    cardsEl.addEventListener('dragover', e => e.preventDefault());
+    cardsEl.addEventListener('drop', e => {
+      e.preventDefault();
+      if(!dragCardId) return;
+      if(e.target === cardsEl) moveCard(ep, dragCardId, lane.id, cards.length);
+    });
+
+    board.appendChild(laneEl);
+  });
+
+  board.querySelectorAll('.add-card').forEach(btn => {
+    btn.onclick = () => addCard(ep, btn.dataset.laneId);
+  });
+
+  if(outlineMode) renderOutline(ep);
+}
+
+function renderCard(ep, laneId, card){
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.draggable = true;
+  el.dataset.cardId = card.id;
+
+  const tag = state.tags.find(t => t.id === card.tagId) || null;
+  el.style.borderLeftColor = tag ? tag.color : 'var(--card-edge)';
+  el.style.background = tag ? `color-mix(in srgb, ${tag.color} 30%, var(--card))` : '';
+
+  const tagRow = document.createElement('div');
+  tagRow.className = 'card-tag-row';
+  const tagSelect = document.createElement('select');
+  tagSelect.className = 'card-tag-select';
+  tagSelect.style.color = tag ? tag.color : 'var(--ink-soft)';
+  const noneOpt = document.createElement('option');
+  noneOpt.value = ''; noneOpt.textContent = 'no color code';
+  tagSelect.appendChild(noneOpt);
+  state.tags.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id; opt.textContent = t.name || 'untitled';
+    if(t.id === card.tagId) opt.selected = true;
+    tagSelect.appendChild(opt);
+  });
+  tagSelect.addEventListener('change', () => {
+    card.tagId = tagSelect.value || null;
+    save();
+    renderBoard(ep);
+  });
+  tagRow.appendChild(tagSelect);
+
+  const pagesWrap = document.createElement('div');
+  pagesWrap.style.display = 'flex'; pagesWrap.style.alignItems = 'center';
+  const pagesInput = document.createElement('input');
+  pagesInput.type = 'number'; pagesInput.className = 'card-pages';
+  pagesInput.step = 'any'; pagesInput.placeholder = '0';
+  pagesInput.title = 'Screenplay page count, e.g. 2.2 = 2 2/8 pages';
+  pagesInput.value = card.pages ? card.pages : '';
+  pagesInput.addEventListener('input', () => {
+    card.pages = parseFloat(pagesInput.value) || 0;
+    save();
+    updatePageTotals(ep);
+  });
+  const pagesLabel = document.createElement('span');
+  pagesLabel.className = 'card-pages-label'; pagesLabel.textContent = 'pg';
+  pagesWrap.appendChild(pagesInput); pagesWrap.appendChild(pagesLabel);
+  tagRow.appendChild(pagesWrap);
+
+  const charsRow = document.createElement('div');
+  charsRow.className = 'card-chars';
+  card.characterIds.forEach(cid => {
+    const ch = state.characters.find(c => c.id === cid);
+    if(!ch) return;
+    const chip = document.createElement('span');
+    chip.className = 'char-chip';
+    chip.textContent = ch.name || 'unnamed';
+    chip.title = 'Click to remove';
+    chip.onclick = () => {
+      card.characterIds = card.characterIds.filter(id => id !== cid);
+      save();
+      renderBoard(ep);
+    };
+    charsRow.appendChild(chip);
+  });
+  const addCharChip = document.createElement('button');
+  addCharChip.className = 'char-add-btn';
+  addCharChip.textContent = '+ character';
+  addCharChip.onclick = (e) => { e.stopPropagation(); openCharPopover(ep, addCharChip, card); };
+  charsRow.appendChild(addCharChip);
+
+  const titleEl = document.createElement('textarea');
+  titleEl.className = 'card-title'; titleEl.rows = 1;
+  titleEl.placeholder = 'Card title'; titleEl.value = card.title; titleEl.spellcheck = false;
+  titleEl.addEventListener('input', () => { card.title = titleEl.value; autoGrow(titleEl); save(); });
+
+  const bodyEl = document.createElement('textarea');
+  bodyEl.className = 'card-body'; bodyEl.rows = 2;
+  bodyEl.placeholder = 'What happens...'; bodyEl.value = card.body;
+  bodyEl.addEventListener('input', () => { card.body = bodyEl.value; autoGrow(bodyEl); save(); });
+
+  const foot = document.createElement('div');
+  foot.className = 'card-foot';
+  if(card.beats && card.beats.length){
+    const badge = document.createElement('span');
+    badge.className = 'card-beat-badge';
+    badge.textContent = card.beats.length + (card.beats.length === 1 ? ' beat' : ' beats');
+    badge.title = 'Edit beats in Outline view';
+    foot.appendChild(badge);
+  }
+  const del = document.createElement('button');
+  del.className = 'card-del'; del.textContent = 'remove';
+  del.onclick = () => deleteCard(ep, laneId, card.id);
+  foot.appendChild(del);
+
+  el.appendChild(tagRow);
+  el.appendChild(charsRow);
+  el.appendChild(titleEl);
+  el.appendChild(bodyEl);
+  el.appendChild(foot);
+
+  requestAnimationFrame(() => { autoGrow(titleEl); autoGrow(bodyEl); });
+
+  el.addEventListener('dragstart', e => {
+    dragCardId = card.id; el.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move';
+  });
+  el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragCardId = null; });
+  el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drag-over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation(); el.classList.remove('drag-over');
+    if(!dragCardId || dragCardId === card.id) return;
+    const targetLane = ep.lanes[laneId];
+    const targetIndex = targetLane.findIndex(c => c.id === card.id);
+    moveCard(ep, dragCardId, laneId, targetIndex);
+  });
+
+  return el;
+}
+
+function findCard(ep, cardId){
+  for(const lane of LANES){
+    const arr = ep.lanes[lane.id];
+    const idx = arr.findIndex(c => c.id === cardId);
+    if(idx !== -1) return { laneId: lane.id, index: idx, card: arr[idx] };
+  }
+  return null;
+}
+
+function moveCard(ep, cardId, targetLaneId, targetIndex){
+  const found = findCard(ep, cardId);
+  if(!found) return;
+  const [card] = ep.lanes[found.laneId].splice(found.index, 1);
+  let idx = targetIndex;
+  if(found.laneId === targetLaneId && found.index < targetIndex) idx -= 1;
+  idx = Math.max(0, Math.min(idx, ep.lanes[targetLaneId].length));
+  ep.lanes[targetLaneId].splice(idx, 0, card);
+  save();
+  renderBoard(ep);
+}
+
+function addCard(ep, laneId){
+  ep.lanes[laneId].push({ id: uid(), title: '', body: '', tagId: null, characterIds: [], pages: 0, beats: [] });
+  save();
+  renderBoard(ep);
+  const lastCard = document.querySelector(`.lane-cards[data-lane-id="${laneId}"] .card:last-child .card-title`);
+  if(lastCard) lastCard.focus();
+}
+
+function deleteCard(ep, laneId, cardId){
+  ep.lanes[laneId] = ep.lanes[laneId].filter(c => c.id !== cardId);
+  save();
+  renderBoard(ep);
+}
+
+function updatePageTotals(ep){
+  LANES.forEach(lane => {
+    const cards = ep.lanes[lane.id];
+    const lanePages = sumPages(cards);
+    const laneEl = document.querySelector(`.lane[data-lane-id="${lane.id}"] .pgtotal`);
+    if(laneEl) laneEl.textContent = lanePages ? formatPages(lanePages) + ' pg' : '';
+  });
+  if(outlineMode) renderOutline(ep);
+}
+
+/* ---------------- character popover ---------------- */
+function openCharPopover(ep, anchor, card){
+  closeCharPopover();
+  const pop = document.createElement('div');
+  pop.className = 'char-popover';
+  pop.id = 'activeCharPopover';
+
+  if(state.characters.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'cp-empty';
+    empty.textContent = 'No characters yet \u2014 add one from the Characters panel.';
+    pop.appendChild(empty);
+  } else {
+    state.characters.forEach(ch => {
+      const label = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = card.characterIds.includes(ch.id);
+      cb.addEventListener('change', () => {
+        if(cb.checked){ if(!card.characterIds.includes(ch.id)) card.characterIds.push(ch.id); }
+        else { card.characterIds = card.characterIds.filter(id => id !== ch.id); }
+        save();
+        renderBoard(ep);
+      });
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(ch.name || 'unnamed'));
+      pop.appendChild(label);
+    });
+  }
+
+  document.body.appendChild(pop);
+  pop.addEventListener('click', e => e.stopPropagation());
+  const rect = anchor.getBoundingClientRect();
+  pop.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+  pop.style.left = (rect.left + window.scrollX) + 'px';
+
+  setTimeout(() => { document.addEventListener('click', closeCharPopover, { once: true }); }, 0);
+}
+function closeCharPopover(){
+  const existing = document.getElementById('activeCharPopover');
+  if(existing) existing.remove();
+}
+
+/* ---------------- Outline (document) view ---------------- */
+document.getElementById('viewToggleBtn').addEventListener('click', () => {
+  outlineMode = !outlineMode;
+  const btn = document.getElementById('viewToggleBtn');
+  const board = document.getElementById('board');
+  const wrap = document.getElementById('outlineDocWrap');
+  const ep = currentEpisode();
+  if(outlineMode){
+    renderOutline(ep);
+    wrap.classList.add('open');
+    board.style.display = 'none';
+    btn.textContent = 'Card view';
+    btn.classList.add('active');
+  } else {
+    wrap.classList.remove('open');
+    renderBoard(ep);
+    board.style.display = 'flex';
+    btn.textContent = 'Outline view';
+    btn.classList.remove('active');
+  }
+});
+
+function renderOutline(ep){
+  const container = document.getElementById('outlineDoc');
+  container.innerHTML = '';
+  const charById = {};
+  state.characters.forEach(c => charById[c.id] = c);
+
+  const totalDiv = document.createElement('div');
+  totalDiv.className = 'doc-total';
+  totalDiv.dataset.role = 'doc-total';
+  const grandTotal = sumPagesAllLanes(ep);
+  totalDiv.textContent = grandTotal ? formatPages(grandTotal) + ' pages estimated' : '';
+  container.appendChild(totalDiv);
+
+  LANES.forEach(lane => {
+    const cards = ep.lanes[lane.id];
+
+    const heading = document.createElement('div');
+    heading.className = 'beat-heading';
+    const hName = document.createElement('span');
+    hName.textContent = lane.name.toUpperCase();
+    const hPg = document.createElement('span');
+    hPg.className = 'beat-pg'; hPg.dataset.role = 'lane-pg'; hPg.dataset.laneId = lane.id;
+    const lanePages = sumPages(cards);
+    hPg.textContent = lanePages ? formatPages(lanePages) + ' pg' : '';
+    heading.appendChild(hName); heading.appendChild(hPg);
+    container.appendChild(heading);
+
+    if(cards.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'beat-empty'; empty.textContent = 'No cards yet.';
+      container.appendChild(empty);
+    } else {
+      const list = document.createElement('div');
+      list.className = 'outline-list';
+      cards.forEach((card, i) => list.appendChild(buildOutlineRow(ep, lane.id, card, i, charById)));
+      container.appendChild(list);
+    }
+
+    const addRow = document.createElement('button');
+    addRow.className = 'add-beat-btn';
+    addRow.style.marginTop = '4px'; addRow.style.paddingLeft = '112px';
+    addRow.textContent = '+ Add card';
+    addRow.onclick = () => addCard(ep, lane.id);
+    container.appendChild(addRow);
+  });
+}
+
+function buildOutlineRow(ep, laneId, card, index, charById){
+  const row = document.createElement('div');
+  row.className = 'outline-row';
+  row.dataset.cardId = card.id;
+
+  const charCol = document.createElement('div');
+  charCol.className = 'oc-charcol';
+  const names = (card.characterIds || []).map(id => charById[id] ? charById[id].name : null).filter(Boolean);
+  charCol.textContent = names.join(', ');
+
+  const num = document.createElement('div');
+  num.className = 'oc-num';
+  num.textContent = (index + 1) + '.';
+
+  const content = document.createElement('div');
+  content.className = 'oc-content';
+
+  const tag = state.tags.find(t => t.id === card.tagId);
+  if(tag){
+    const swatch = document.createElement('span');
+    swatch.style.cssText = `display:inline-block;width:8px;height:8px;border-radius:50%;background:${tag.color};margin-right:6px;`;
+    content.appendChild(swatch);
+  }
+
+  const titleSpan = document.createElement('span');
+  titleSpan.className = 'oc-title'; titleSpan.contentEditable = 'true';
+  titleSpan.textContent = card.title || 'Untitled';
+  titleSpan.addEventListener('input', () => { card.title = titleSpan.textContent; save(); });
+  content.appendChild(titleSpan);
+
+  const dash = document.createElement('span');
+  dash.className = 'oc-dash'; dash.textContent = ' \u2014 ';
+
+  const bodySpan = document.createElement('span');
+  bodySpan.className = 'oc-body'; bodySpan.contentEditable = 'true';
+  bodySpan.textContent = card.body || '';
+  bodySpan.addEventListener('input', () => { card.body = bodySpan.textContent; save(); });
+
+  content.appendChild(dash);
+  content.appendChild(bodySpan);
+
+  const pagesRow = document.createElement('span');
+  pagesRow.className = 'oc-meta';
+  const pagesInput = document.createElement('input');
+  pagesInput.type = 'text'; pagesInput.className = 'oc-pages';
+  pagesInput.value = card.pages ? card.pages : '';
+  pagesInput.placeholder = '0';
+  pagesInput.title = 'Screenplay page count, e.g. 2.2 = 2 2/8 pages';
+  pagesInput.addEventListener('input', () => {
+    card.pages = parseFloat(pagesInput.value) || 0;
+    save();
+    updateOutlineTotals(ep);
+  });
+  pagesRow.appendChild(pagesInput);
+  pagesRow.appendChild(document.createTextNode(' pg'));
+  content.appendChild(pagesRow);
+
+  const beatsWrap = document.createElement('div');
+  beatsWrap.className = 'oc-beats';
+  renderOutlineBeatsInto(beatsWrap, card);
+  content.appendChild(beatsWrap);
+
+  row.appendChild(charCol);
+  row.appendChild(num);
+  row.appendChild(content);
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'oc-card-del'; delBtn.textContent = 'remove';
+  delBtn.onclick = () => deleteCard(ep, laneId, card.id);
+  row.appendChild(delBtn);
+
+  return row;
+}
+
+function renderOutlineBeatsInto(wrap, card){
+  wrap.innerHTML = '';
+  card.beats.forEach((beat, i) => {
+    const row = document.createElement('div');
+    row.className = 'oc-beat-row';
+
+    const letter = document.createElement('span');
+    letter.className = 'oc-beat-letter';
+    letter.textContent = beatLetter(i) + '.';
+
+    const text = document.createElement('span');
+    text.className = 'oc-beat-text'; text.contentEditable = 'true';
+    text.textContent = beat.text;
+    text.addEventListener('input', () => { beat.text = text.textContent; save(); });
+
+    const del = document.createElement('button');
+    del.className = 'oc-beat-del'; del.textContent = '\u00d7';
+    del.onclick = () => {
+      card.beats = card.beats.filter(b => b.id !== beat.id);
+      save();
+      renderOutlineBeatsInto(wrap, card);
+    };
+
+    row.appendChild(letter); row.appendChild(text); row.appendChild(del);
+    wrap.appendChild(row);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-beat-btn'; addBtn.textContent = '+ beat';
+  addBtn.onclick = () => {
+    card.beats.push({ id: uid('b'), text: '' });
+    save();
+    renderOutlineBeatsInto(wrap, card);
+    const texts = wrap.querySelectorAll('.oc-beat-text');
+    if(texts.length) texts[texts.length - 1].focus();
+  };
+  wrap.appendChild(addBtn);
+}
+
+function updateOutlineTotals(ep){
+  LANES.forEach(lane => {
+    const cards = ep.lanes[lane.id];
+    const lanePages = sumPages(cards);
+    const elPg = document.querySelector(`.beat-pg[data-lane-id="${lane.id}"]`);
+    if(elPg) elPg.textContent = lanePages ? formatPages(lanePages) + ' pg' : '';
+  });
+  const docTotal = document.querySelector('[data-role="doc-total"]');
+  if(docTotal){
+    const grandTotal = sumPagesAllLanes(ep);
+    docTotal.textContent = grandTotal ? formatPages(grandTotal) + ' pages estimated' : '';
+  }
+}
+
+/* ---------------- global characters / color codes panels ---------------- */
+function renderLegendDots(){
+  const dots = document.getElementById('legendDots');
+  dots.innerHTML = '';
+  state.tags.slice(0, 4).forEach(t => {
+    const s = document.createElement('span');
+    s.style.background = t.color;
+    dots.appendChild(s);
+  });
+  if(state.tags.length === 0){
+    const s = document.createElement('span');
+    s.style.background = '#565c4e';
+    dots.appendChild(s);
+  }
+}
+
+function renderTagList(){
+  const list = document.getElementById('tagList');
+  list.innerHTML = '';
+  state.tags.forEach(tag => {
+    const row = document.createElement('div');
+    row.className = 'row-item';
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color'; colorInput.value = tag.color;
+    colorInput.addEventListener('input', () => {
+      tag.color = colorInput.value;
+      save();
+      renderLegendDots();
+      refreshCurrentBoardOrOutline();
+    });
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text'; nameInput.value = tag.name; nameInput.placeholder = 'Color code name';
+    nameInput.addEventListener('input', () => {
+      tag.name = nameInput.value;
+      save();
+      refreshCurrentBoardOrOutline();
+    });
+
+    const del = document.createElement('button');
+    del.className = 'row-del'; del.textContent = 'remove';
+    del.onclick = () => {
+      state.tags = state.tags.filter(t => t.id !== tag.id);
+      state.episodes.forEach(ep => {
+        LANES.forEach(l => { ep.lanes[l.id].forEach(c => { if(c.tagId === tag.id) c.tagId = null; }); });
+      });
+      save();
+      renderLegendDots();
+      renderTagList();
+      refreshCurrentBoardOrOutline();
+    };
+
+    row.appendChild(colorInput); row.appendChild(nameInput); row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+function renderCharList(){
+  const list = document.getElementById('charList');
+  list.innerHTML = '';
+  state.characters.forEach(ch => {
+    const row = document.createElement('div');
+    row.className = 'row-item';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text'; nameInput.value = ch.name; nameInput.placeholder = 'Character name';
+    nameInput.addEventListener('input', () => {
+      ch.name = nameInput.value;
+      save();
+      refreshCurrentBoardOrOutline();
+    });
+
+    const del = document.createElement('button');
+    del.className = 'row-del'; del.textContent = 'remove';
+    del.onclick = () => {
+      state.characters = state.characters.filter(c => c.id !== ch.id);
+      state.episodes.forEach(ep => {
+        LANES.forEach(l => { ep.lanes[l.id].forEach(c => { c.characterIds = c.characterIds.filter(id => id !== ch.id); }); });
+      });
+      save();
+      renderCharList();
+      refreshCurrentBoardOrOutline();
+    };
+
+    row.appendChild(nameInput); row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+function refreshCurrentBoardOrOutline(){
+  const ep = currentEpisode();
+  if(!ep) return;
+  if(outlineMode) renderOutline(ep); else renderBoard(ep);
+}
+
+document.getElementById('charBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('legendPanel').classList.remove('open');
+  document.getElementById('charPanel').classList.toggle('open');
+});
+document.getElementById('charPanel').addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => document.getElementById('charPanel').classList.remove('open'));
+document.getElementById('addCharBtn').addEventListener('click', () => {
+  state.characters.push({ id: uid('p'), name: '' });
+  save();
+  renderCharList();
+  const lastInput = document.querySelector('#charList .row-item:last-child input[type="text"]');
+  if(lastInput) lastInput.focus();
+});
+
+document.getElementById('legendBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('charPanel').classList.remove('open');
+  document.getElementById('legendPanel').classList.toggle('open');
+});
+document.getElementById('legendPanel').addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => document.getElementById('legendPanel').classList.remove('open'));
+document.getElementById('addTagBtn').addEventListener('click', () => {
+  const palette = ['#b5482f','#4a6b5a','#8a6d3b','#3f5876','#7a4a6b','#6b7a3f'];
+  const color = palette[state.tags.length % palette.length];
+  state.tags.push({ id: uid('t'), name: '', color });
+  save();
+  renderLegendDots();
+  renderTagList();
+});
+
+document.getElementById('undoBtn').addEventListener('click', undo);
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if(confirm('Reset the entire show \u2014 all seasons, episodes, characters and color codes? This cannot be undone.')){
+    state = emptyState();
+    undoStack = [];
+    lastSnapshot = JSON.stringify(state);
+    save();
+    goHome();
+    renderLegendDots();
+    renderTagList();
+    renderCharList();
+    updateUndoBtn();
+  }
+});
+
+document.addEventListener('keydown', e => {
+  const key = e.key.toLowerCase();
+  if((e.metaKey || e.ctrlKey) && key === 'z' && !e.shiftKey){
+    e.preventDefault();
+    undo();
+  }
+});
+
+(async function init(){
+  setSyncStatus('Loading from Google Sheet\u2026', false);
+  await load();
+  lastSnapshot = JSON.stringify(state);
+  renderLegendDots();
+  renderTagList();
+  renderCharList();
+  updateUndoBtn();
+  goHome();
+})();
+</script>
+</body>
+</html>
