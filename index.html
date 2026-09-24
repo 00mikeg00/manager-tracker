@@ -111,13 +111,7 @@
       <input type="text" id="companyInput" placeholder="Company name" />
       <input type="text" id="contactInput" placeholder="Contact name (optional)" />
       <input type="text" id="emailInput" placeholder="Email" />
-      <select id="stageInput">
-        <option value="flagged">Flagged</option>
-        <option value="sent" selected>Sent email</option>
-        <option value="responded">Responded</option>
-        <option value="pilot">Has pilot</option>
-        <option value="passed">Passed</option>
-      </select>
+      <select id="stageInput"></select>
     </div>
     <div class="add-row">
       <select id="warmthInput">
@@ -186,7 +180,24 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbzSIgRjjf9waWMqMvOKYduHb3LQ7QQ17TK4UlTOXZNsl0WYFSAsQRAl-fJpdGyIW1tYtw/exec';
 let mgrRows = [];
 let compRows = [];
-const STAGE_LABELS = { flagged: 'Flagged', sent: 'Sent', responded: 'Responded', pilot: 'Has pilot', passed: 'Passed' };
+const STAGES = [
+  { value: 'flagged', label: 'Flagged', option: 'Flagged' },
+  { value: 'sent', label: 'Sent', option: 'Sent email' },
+  { value: 'nudge1', label: 'First nudge', option: 'First nudge' },
+  { value: 'nudge2', label: 'Last nudge', option: 'Last nudge' },
+  { value: 'responded', label: 'Responded', option: 'Responded' },
+  { value: 'pilot', label: 'Has pilot', option: 'Has pilot' },
+  { value: 'passed', label: 'Passed', option: 'Passed' }
+];
+const STAGE_LABELS = Object.fromEntries(STAGES.map(st => [st.value, st.label]));
+
+function stageOptions(selected) {
+  return STAGES.map(st => `<option value="${st.value}" ${st.value === selected ? 'selected' : ''}>${st.option}</option>`).join('');
+}
+
+function todayLabel() {
+  return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 const CATEGORIES = [
   { value: 'manager', label: 'Manager', plural: 'Managers' },
   { value: 'lawyer', label: 'Lawyer', plural: 'Lawyers' },
@@ -340,6 +351,13 @@ async function addManager() {
 }
 
 async function updateStage(id, stage) {
+  // Show the new stage date right away; the sheet stamps the same date.
+  const row = mgrRows.find(r => String(r.id) === String(id));
+  if (row) {
+    row.stage = stage;
+    row[stage + 'Date'] = todayLabel();
+    renderManagers();
+  }
   try {
     await fetch(API_URL, {
       method: 'POST',
@@ -383,7 +401,7 @@ async function removeManager(id) {
 }
 
 function getMostRecentDate(r) {
-  const dates = [r.flaggedDate, r.sentDate, r.respondedDate, r.pilotDate, r.passedDate]
+  const dates = STAGES.map(st => r[st.value + 'Date'])
     .filter(Boolean)
     .map(d => new Date(d).getTime())
     .filter(t => !isNaN(t));
@@ -392,7 +410,7 @@ function getMostRecentDate(r) {
 
 function sortManagerRows(list) {
   const sortBy = document.getElementById('mgrSort').value;
-  const STAGE_ORDER = { flagged: 0, sent: 1, responded: 2, pilot: 3, passed: 4 };
+  const STAGE_ORDER = Object.fromEntries(STAGES.map((st, i) => [st.value, i]));
   const sorted = [...list];
   if (sortBy === 'recent') {
     sorted.sort((a, b) => getMostRecentDate(b) - getMostRecentDate(a));
@@ -416,7 +434,7 @@ function sortManagerRows(list) {
 }
 
 function renderTotals(rows) {
-  const counts = { flagged: 0, sent: 0, responded: 0, pilot: 0, passed: 0 };
+  const counts = Object.fromEntries(STAGES.map(st => [st.value, 0]));
   rows.forEach(r => { if (r.stage in counts) counts[r.stage]++; });
   const due = rows.filter(isFollowupDue).length;
   const cat = CATEGORIES.find(c => c.value === currentCategory);
@@ -455,12 +473,9 @@ function renderManagers() {
   const sortedRows = sortManagerRows(rows);
   sortedRows.forEach(r => {
     const tr = document.createElement('tr');
-    const dateLines = [];
-    if (r.flaggedDate) dateLines.push(`${STAGE_LABELS.flagged}: ${r.flaggedDate}`);
-    if (r.sentDate) dateLines.push(`${STAGE_LABELS.sent}: ${r.sentDate}`);
-    if (r.respondedDate) dateLines.push(`${STAGE_LABELS.responded}: ${r.respondedDate}`);
-    if (r.pilotDate) dateLines.push(`${STAGE_LABELS.pilot}: ${r.pilotDate}`);
-    if (r.passedDate) dateLines.push(`${STAGE_LABELS.passed}: ${r.passedDate}`);
+    const dateLines = STAGES
+      .filter(st => r[st.value + 'Date'])
+      .map(st => `${st.label}: ${r[st.value + 'Date']}`);
 
     const warmth = r.warmth === 'warm' || r.warmth === 'cold' ? r.warmth : '';
     const fit = parseFit(r.fit);
@@ -482,13 +497,7 @@ function renderManagers() {
       <td>${escapeHtml(r.contact || '—')}</td>
       <td>${escapeHtml(r.email || '—')}</td>
       <td>
-        <select class="stage-select" onchange="updateStage('${r.id}', this.value)">
-          <option value="flagged" ${r.stage==='flagged'?'selected':''}>Flagged</option>
-          <option value="sent" ${r.stage==='sent'?'selected':''}>Sent email</option>
-          <option value="responded" ${r.stage==='responded'?'selected':''}>Responded</option>
-          <option value="pilot" ${r.stage==='pilot'?'selected':''}>Has pilot</option>
-          <option value="passed" ${r.stage==='passed'?'selected':''}>Passed</option>
-        </select>
+        <select class="stage-select" onchange="updateStage('${r.id}', this.value)">${stageOptions(r.stage)}</select>
       </td>
       <td><input type="date" class="followup ${followClass}" value="${followUp}" onchange="updateManagerField('${r.id}', { followUp: this.value })"></td>
       <td class="actions"><button class="secondary" onclick="removeManager('${r.id}')">Remove</button></td>
@@ -654,6 +663,7 @@ function escapeAttr(s) {
 }
 
 document.getElementById('fitInput').innerHTML = fitCheckboxes([]);
+document.getElementById('stageInput').innerHTML = stageOptions('sent');
 
 loadManagers();
 loadCompetitions();
