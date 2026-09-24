@@ -12,7 +12,7 @@
     margin: 0;
     padding: 2rem 1rem;
   }
-  .wrap { max-width: 900px; margin: 0 auto; }
+  .wrap { max-width: 1000px; margin: 0 auto; }
   h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
   .sub { color: #6b6a65; font-size: 14px; margin: 0 0 16px; }
   .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
@@ -63,6 +63,22 @@
   .total-box .num { font-size: 22px; font-weight: 600; line-height: 1.2; }
   .total-box .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: #6b6a65; }
   .total-box.all .label { color: #c9c7bd; }
+  .total-box.due { border-color: #d9a441; }
+  .field-label { font-size: 13px; color: #6b6a65; align-self: center; }
+  .fit-checks { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 13px; color: #1f1f1d; }
+  .fit-checks label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+  .detail-grid .rel { flex: 0 0 240px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+  .detail-grid .rel select, .detail-grid .rel input { font-size: 12px; padding: 4px 6px; }
+  .detail-grid .rel .fit-checks { font-size: 12px; gap: 8px; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
+  .badge.warm { background: #fbe3cf; color: #9a4a12; }
+  .badge.cold { background: #e3ebf3; color: #3d5a78; }
+  .intro { font-size: 11px; color: #6b6a65; margin-top: 2px; }
+  .fit-tags { margin-top: 4px; }
+  .fit-tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #efeee8; color: #4a4944; margin: 2px 4px 0 0; }
+  input.followup { font-size: 12px; padding: 4px 6px; }
+  input.followup.overdue { border-color: #a03434; color: #a03434; }
+  input.followup.soon { border-color: #d9a441; }
 </style>
 </head>
 <body>
@@ -90,6 +106,20 @@
         <option value="passed">Passed</option>
       </select>
     </div>
+    <div class="add-row">
+      <select id="warmthInput">
+        <option value="">Warm / cold?</option>
+        <option value="warm">Warm</option>
+        <option value="cold">Cold</option>
+      </select>
+      <input type="text" id="introInput" placeholder="Who could introduce you? (optional)" />
+      <label class="field-label" for="followupInput">Follow up:</label>
+      <input type="date" id="followupInput" />
+    </div>
+    <div class="add-row">
+      <span class="field-label">Fit:</span>
+      <div class="fit-checks" id="fitInput"></div>
+    </div>
     <div class="add-row2">
       <textarea id="notesInput" placeholder="Notes (optional)"></textarea>
       <button id="addBtn" onclick="addManager()">Add</button>
@@ -99,6 +129,8 @@
       <label style="font-size:13px; color:#6b6a65; align-self:center;">Sort by:</label>
       <select id="mgrSort" onchange="renderManagers()">
         <option value="recent">Most recent activity</option>
+        <option value="followup">Follow-up date (soonest first)</option>
+        <option value="fit">Best fit</option>
         <option value="company">Company name (A–Z)</option>
         <option value="status">Status</option>
       </select>
@@ -107,7 +139,7 @@
     <div id="mgrStatus" class="status">Loading…</div>
     <table id="mgrTable" style="display:none;">
       <thead>
-        <tr><th>Company</th><th>Contact</th><th>Email</th><th>Stage</th><th></th></tr>
+        <tr><th>Company</th><th>Contact</th><th>Email</th><th>Stage</th><th>Follow up</th><th></th></tr>
       </thead>
       <tbody id="mgrTbody"></tbody>
     </table>
@@ -142,6 +174,49 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzSIgRjjf9waWMqMvOKYduH
 let mgrRows = [];
 let compRows = [];
 const STAGE_LABELS = { flagged: 'Flagged', sent: 'Sent', responded: 'Responded', pilot: 'Has pilot', passed: 'Passed' };
+const FIT_OPTIONS = [
+  { value: 'tv', label: 'TV writers' },
+  { value: 'genre', label: 'Genre' },
+  { value: 'thriller-horror', label: 'Thriller / horror' },
+  { value: 'writer-directors', label: 'Writer-directors' }
+];
+const FIT_LABELS = Object.fromEntries(FIT_OPTIONS.map(f => [f.value, f.label]));
+
+function fitCheckboxes(selected, onchange) {
+  return FIT_OPTIONS.map(f => `
+    <label><input type="checkbox" value="${f.value}" ${selected.includes(f.value) ? 'checked' : ''} ${onchange ? `onchange="${onchange}"` : ''}>${f.label}</label>
+  `).join('');
+}
+
+function parseFit(fit) {
+  return String(fit || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function checkedFit(container) {
+  return [...container.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value).join(',');
+}
+
+// Sheets may hand dates back as ISO timestamps; normalize to yyyy-mm-dd for <input type="date">.
+function normalizeDate(v) {
+  if (!v) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((new Date(y, m - 1, d) - today) / 86400000);
+}
+
+function isFollowupDue(r) {
+  const days = daysUntil(normalizeDate(r.followUp));
+  return days !== null && days <= 7 && r.stage !== 'passed';
+}
 
 function switchTab(tab) {
   document.getElementById('panelManagers').classList.toggle('active', tab === 'managers');
@@ -174,6 +249,10 @@ async function addManager() {
   const emailEl = document.getElementById('emailInput');
   const stageEl = document.getElementById('stageInput');
   const notesEl = document.getElementById('notesInput');
+  const warmthEl = document.getElementById('warmthInput');
+  const introEl = document.getElementById('introInput');
+  const followupEl = document.getElementById('followupInput');
+  const fitEl = document.getElementById('fitInput');
   const addBtn = document.getElementById('addBtn');
 
   const company = companyEl.value.trim();
@@ -181,6 +260,10 @@ async function addManager() {
   const email = emailEl.value.trim();
   const stage = stageEl.value;
   const notes = notesEl.value.trim();
+  const warmth = warmthEl.value;
+  const intro = introEl.value.trim();
+  const followUp = followupEl.value;
+  const fit = checkedFit(fitEl);
   if (!company) {
     companyEl.style.borderColor = '#a03434';
     return;
@@ -191,12 +274,16 @@ async function addManager() {
   try {
     await fetch(API_URL, {
       method: 'POST',
-      body: JSON.stringify({ type: 'managers', action: 'add', company, contact, email, stage, notes })
+      body: JSON.stringify({ type: 'managers', action: 'add', company, contact, email, stage, notes, warmth, intro, followUp, fit })
     });
     companyEl.value = '';
     contactEl.value = '';
     emailEl.value = '';
     notesEl.value = '';
+    warmthEl.value = '';
+    introEl.value = '';
+    followupEl.value = '';
+    fitEl.querySelectorAll('input').forEach(c => { c.checked = false; });
     await loadManagers();
   } catch (e) {
     alert("Couldn't save — check your connection and try again.");
@@ -225,6 +312,20 @@ async function updateNotes(id, notes) {
     });
   } catch (e) {
     alert("Couldn't save notes — check your connection and try again.");
+  }
+}
+
+async function updateManagerField(id, fields, reload = true) {
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ type: 'managers', action: 'update', id, ...fields })
+    });
+    const row = mgrRows.find(r => String(r.id) === String(id));
+    if (row) Object.assign(row, fields);
+    if (reload) renderManagers();
+  } catch (e) {
+    alert("Couldn't update — check your connection and try again.");
   }
 }
 
@@ -258,6 +359,17 @@ function sortManagerRows(list) {
     sorted.sort((a, b) => a.company.localeCompare(b.company));
   } else if (sortBy === 'status') {
     sorted.sort((a, b) => (STAGE_ORDER[a.stage] ?? 99) - (STAGE_ORDER[b.stage] ?? 99));
+  } else if (sortBy === 'followup') {
+    // Rows with a follow-up date first (soonest/overdue on top), passed and undated at the bottom.
+    const key = r => {
+      const days = daysUntil(normalizeDate(r.followUp));
+      return days === null || r.stage === 'passed' ? Infinity : days;
+    };
+    sorted.sort((a, b) => key(a) - key(b));
+  } else if (sortBy === 'fit') {
+    // More fit tags first; warm contacts break ties.
+    const score = r => parseFit(r.fit).length * 2 + (r.warmth === 'warm' ? 1 : 0);
+    sorted.sort((a, b) => score(b) - score(a));
   }
   return sorted;
 }
@@ -265,7 +377,11 @@ function sortManagerRows(list) {
 function renderTotals() {
   const counts = { flagged: 0, sent: 0, responded: 0, pilot: 0, passed: 0 };
   mgrRows.forEach(r => { if (r.stage in counts) counts[r.stage]++; });
-  const boxes = [`<div class="total-box all"><div class="num">${mgrRows.length}</div><div class="label">Total managers</div></div>`];
+  const due = mgrRows.filter(isFollowupDue).length;
+  const boxes = [
+    `<div class="total-box all"><div class="num">${mgrRows.length}</div><div class="label">Total managers</div></div>`,
+    `<div class="total-box due"><div class="num">${due}</div><div class="label">Follow up this week</div></div>`
+  ];
   Object.keys(counts).forEach(stage => {
     boxes.push(`<div class="total-box"><div class="num">${counts[stage]}</div><div class="label">${STAGE_LABELS[stage]}</div></div>`);
   });
@@ -300,8 +416,18 @@ function renderManagers() {
     if (r.pilotDate) dateLines.push(`${STAGE_LABELS.pilot}: ${r.pilotDate}`);
     if (r.passedDate) dateLines.push(`${STAGE_LABELS.passed}: ${r.passedDate}`);
 
+    const warmth = r.warmth === 'warm' || r.warmth === 'cold' ? r.warmth : '';
+    const fit = parseFit(r.fit);
+    const followUp = normalizeDate(r.followUp);
+    const days = daysUntil(followUp);
+    const followClass = days === null || r.stage === 'passed' ? '' : days < 0 ? 'overdue' : days <= 7 ? 'soon' : '';
+
     tr.innerHTML = `
-      <td>${escapeHtml(r.company)}</td>
+      <td>
+        ${escapeHtml(r.company)}${warmth ? `<span class="badge ${warmth}">${warmth}</span>` : ''}
+        ${r.intro ? `<div class="intro">Intro via ${escapeHtml(r.intro)}</div>` : ''}
+        ${fit.length ? `<div class="fit-tags">${fit.map(f => `<span class="fit-tag">${escapeHtml(FIT_LABELS[f] || f)}</span>`).join('')}</div>` : ''}
+      </td>
       <td>${escapeHtml(r.contact || '—')}</td>
       <td>${escapeHtml(r.email || '—')}</td>
       <td>
@@ -313,6 +439,7 @@ function renderManagers() {
           <option value="passed" ${r.stage==='passed'?'selected':''}>Passed</option>
         </select>
       </td>
+      <td><input type="date" class="followup ${followClass}" value="${followUp}" onchange="updateManagerField('${r.id}', { followUp: this.value })"></td>
       <td class="actions"><button class="secondary" onclick="removeManager('${r.id}')">Remove</button></td>
     `;
     tbody.appendChild(tr);
@@ -320,9 +447,18 @@ function renderManagers() {
     const tr2 = document.createElement('tr');
     tr2.className = 'detail-row';
     tr2.innerHTML = `
-      <td colspan="5">
+      <td colspan="6">
         <div class="detail-grid">
           <div class="dates">${dateLines.length ? dateLines.join('<br>') : 'No history yet'}</div>
+          <div class="rel">
+            <select onchange="updateManagerField('${r.id}', { warmth: this.value })">
+              <option value="" ${warmth===''?'selected':''}>Warm / cold?</option>
+              <option value="warm" ${warmth==='warm'?'selected':''}>Warm</option>
+              <option value="cold" ${warmth==='cold'?'selected':''}>Cold</option>
+            </select>
+            <input type="text" placeholder="Who could introduce you?" value="${escapeAttr(r.intro || '')}" onchange="updateManagerField('${r.id}', { intro: this.value.trim() })">
+            <div class="fit-checks">${fitCheckboxes(fit, `updateManagerField('${r.id}', { fit: checkedFit(this.closest('.fit-checks')) })`)}</div>
+          </div>
           <textarea placeholder="Notes" onblur="updateNotes('${r.id}', this.value)">${escapeHtml(r.notes || '')}</textarea>
         </div>
       </td>
@@ -461,6 +597,12 @@ function escapeHtml(s) {
   div.textContent = s;
   return div.innerHTML;
 }
+
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/"/g, '&quot;');
+}
+
+document.getElementById('fitInput').innerHTML = fitCheckboxes([]);
 
 loadManagers();
 loadCompetitions();
