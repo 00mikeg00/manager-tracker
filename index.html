@@ -64,6 +64,13 @@
   .total-box .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: #6b6a65; }
   .total-box.all .label { color: #c9c7bd; }
   .total-box.due { border-color: #d9a441; }
+  .cat-filter { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .cat-btn {
+    font-size: 13px; padding: 6px 12px; border: 1px solid #d8d6cf;
+    background: #fff; border-radius: 999px; cursor: pointer; color: #6b6a65;
+  }
+  .cat-btn.active { background: #1f1f1d; color: #fff; border-color: #1f1f1d; }
+  .cat-btn .count { opacity: 0.7; margin-left: 4px; }
   .field-label { font-size: 13px; color: #6b6a65; align-self: center; }
   .fit-checks { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 13px; color: #1f1f1d; }
   .fit-checks label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
@@ -84,17 +91,23 @@
 <body>
 <div class="wrap">
   <h1>Splitting — tracker</h1>
-  <p class="sub">Managers and competitions, synced with Google Sheets.</p>
+  <p class="sub">Managers, lawyers, production companies and competitions, synced with Google Sheets.</p>
 
   <div class="tabs">
-    <button class="tab-btn active" id="tabBtnManagers" onclick="switchTab('managers')">Managers</button>
+    <button class="tab-btn active" id="tabBtnManagers" onclick="switchTab('managers')">Contacts</button>
     <button class="tab-btn" id="tabBtnCompetitions" onclick="switchTab('competitions')">Competitions / labs</button>
   </div>
 
   <div class="panel active" id="panelManagers">
+    <div class="cat-filter" id="catFilter"></div>
     <div class="totals" id="mgrTotals"></div>
 
     <div class="add-row">
+      <select id="categoryInput">
+        <option value="manager">Manager</option>
+        <option value="lawyer">Lawyer</option>
+        <option value="production">Production company</option>
+      </select>
       <input type="text" id="companyInput" placeholder="Company name" />
       <input type="text" id="contactInput" placeholder="Contact name (optional)" />
       <input type="text" id="emailInput" placeholder="Email" />
@@ -139,7 +152,7 @@
     <div id="mgrStatus" class="status">Loading…</div>
     <table id="mgrTable" style="display:none;">
       <thead>
-        <tr><th>Company</th><th>Contact</th><th>Email</th><th>Stage</th><th>Follow up</th><th></th></tr>
+        <tr><th>Company</th><th>Type</th><th>Contact</th><th>Email</th><th>Stage</th><th>Follow up</th><th></th></tr>
       </thead>
       <tbody id="mgrTbody"></tbody>
     </table>
@@ -174,6 +187,37 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzSIgRjjf9waWMqMvOKYduH
 let mgrRows = [];
 let compRows = [];
 const STAGE_LABELS = { flagged: 'Flagged', sent: 'Sent', responded: 'Responded', pilot: 'Has pilot', passed: 'Passed' };
+const CATEGORIES = [
+  { value: 'manager', label: 'Manager', plural: 'Managers' },
+  { value: 'lawyer', label: 'Lawyer', plural: 'Lawyers' },
+  { value: 'production', label: 'Production company', plural: 'Production companies' }
+];
+let currentCategory = 'manager';
+
+// Rows saved before categories existed are managers.
+function getCategory(r) {
+  return CATEGORIES.some(c => c.value === r.category) ? r.category : 'manager';
+}
+
+function visibleRows() {
+  return currentCategory === 'all' ? mgrRows : mgrRows.filter(r => getCategory(r) === currentCategory);
+}
+
+function setCategory(cat) {
+  currentCategory = cat;
+  if (cat !== 'all') document.getElementById('categoryInput').value = cat;
+  renderManagers();
+}
+
+function renderCategoryFilter() {
+  const btns = CATEGORIES.map(c => {
+    const n = mgrRows.filter(r => getCategory(r) === c.value).length;
+    return `<button class="cat-btn ${currentCategory === c.value ? 'active' : ''}" onclick="setCategory('${c.value}')">${c.plural}<span class="count">${n}</span></button>`;
+  });
+  btns.push(`<button class="cat-btn ${currentCategory === 'all' ? 'active' : ''}" onclick="setCategory('all')">All<span class="count">${mgrRows.length}</span></button>`);
+  document.getElementById('catFilter').innerHTML = btns.join('');
+}
+
 const FIT_OPTIONS = [
   { value: 'tv', label: 'TV writers' },
   { value: 'genre', label: 'Genre' },
@@ -249,6 +293,7 @@ async function addManager() {
   const emailEl = document.getElementById('emailInput');
   const stageEl = document.getElementById('stageInput');
   const notesEl = document.getElementById('notesInput');
+  const categoryEl = document.getElementById('categoryInput');
   const warmthEl = document.getElementById('warmthInput');
   const introEl = document.getElementById('introInput');
   const followupEl = document.getElementById('followupInput');
@@ -256,6 +301,7 @@ async function addManager() {
   const addBtn = document.getElementById('addBtn');
 
   const company = companyEl.value.trim();
+  const category = categoryEl.value;
   const contact = contactEl.value.trim();
   const email = emailEl.value.trim();
   const stage = stageEl.value;
@@ -274,7 +320,7 @@ async function addManager() {
   try {
     await fetch(API_URL, {
       method: 'POST',
-      body: JSON.stringify({ type: 'managers', action: 'add', company, contact, email, stage, notes, warmth, intro, followUp, fit })
+      body: JSON.stringify({ type: 'managers', action: 'add', category, company, contact, email, stage, notes, warmth, intro, followUp, fit })
     });
     companyEl.value = '';
     contactEl.value = '';
@@ -284,6 +330,7 @@ async function addManager() {
     introEl.value = '';
     followupEl.value = '';
     fitEl.querySelectorAll('input').forEach(c => { c.checked = false; });
+    if (currentCategory !== 'all') currentCategory = category;
     await loadManagers();
   } catch (e) {
     alert("Couldn't save — check your connection and try again.");
@@ -368,12 +415,14 @@ function sortManagerRows(list) {
   return sorted;
 }
 
-function renderTotals() {
+function renderTotals(rows) {
   const counts = { flagged: 0, sent: 0, responded: 0, pilot: 0, passed: 0 };
-  mgrRows.forEach(r => { if (r.stage in counts) counts[r.stage]++; });
-  const due = mgrRows.filter(isFollowupDue).length;
+  rows.forEach(r => { if (r.stage in counts) counts[r.stage]++; });
+  const due = rows.filter(isFollowupDue).length;
+  const cat = CATEGORIES.find(c => c.value === currentCategory);
+  const totalLabel = cat ? `Total ${cat.plural.toLowerCase()}` : 'Total contacts';
   const boxes = [
-    `<div class="total-box all"><div class="num">${mgrRows.length}</div><div class="label">Total managers</div></div>`,
+    `<div class="total-box all"><div class="num">${rows.length}</div><div class="label">${totalLabel}</div></div>`,
     `<div class="total-box due"><div class="num">${due}</div><div class="label">Follow up this week</div></div>`
   ];
   Object.keys(counts).forEach(stage => {
@@ -383,14 +432,17 @@ function renderTotals() {
 }
 
 function renderManagers() {
-  renderTotals();
+  const rows = visibleRows();
+  renderCategoryFilter();
+  renderTotals(rows);
   const tbody = document.getElementById('mgrTbody');
   const table = document.getElementById('mgrTable');
   const statusMsg = document.getElementById('mgrStatus');
   tbody.innerHTML = '';
 
-  if (mgrRows.length === 0) {
-    statusMsg.textContent = 'No managers added yet.';
+  if (rows.length === 0) {
+    const cat = CATEGORIES.find(c => c.value === currentCategory);
+    statusMsg.textContent = `No ${cat ? cat.plural.toLowerCase() : 'contacts'} added yet.`;
     statusMsg.classList.remove('error');
     statusMsg.style.display = 'block';
     table.style.display = 'none';
@@ -400,7 +452,7 @@ function renderManagers() {
   statusMsg.style.display = 'none';
   table.style.display = 'table';
 
-  const sortedRows = sortManagerRows(mgrRows);
+  const sortedRows = sortManagerRows(rows);
   sortedRows.forEach(r => {
     const tr = document.createElement('tr');
     const dateLines = [];
@@ -422,6 +474,11 @@ function renderManagers() {
         ${r.intro ? `<div class="intro">Intro via ${escapeHtml(r.intro)}</div>` : ''}
         ${fit.length ? `<div class="fit-tags">${fit.map(f => `<span class="fit-tag">${escapeHtml(FIT_LABELS[f] || f)}</span>`).join('')}</div>` : ''}
       </td>
+      <td>
+        <select class="stage-select" onchange="updateManagerField('${r.id}', { category: this.value })">
+          ${CATEGORIES.map(c => `<option value="${c.value}" ${getCategory(r)===c.value?'selected':''}>${c.label}</option>`).join('')}
+        </select>
+      </td>
       <td>${escapeHtml(r.contact || '—')}</td>
       <td>${escapeHtml(r.email || '—')}</td>
       <td>
@@ -441,7 +498,7 @@ function renderManagers() {
     const tr2 = document.createElement('tr');
     tr2.className = 'detail-row';
     tr2.innerHTML = `
-      <td colspan="6">
+      <td colspan="7">
         <div class="detail-grid">
           <div class="dates">${dateLines.length ? dateLines.join('<br>') : 'No history yet'}</div>
           <div class="rel">
