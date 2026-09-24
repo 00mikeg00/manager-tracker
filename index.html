@@ -54,6 +54,15 @@
   .empty, .status { text-align: center; color: #9b9a94; padding: 20px; font-size: 14px; }
   .error { color: #a03434; }
   .comp-notes { width: 100%; font-size: 12px; min-height: 32px; }
+  .totals { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .total-box {
+    flex: 1; min-width: 90px; background: #fff; border: 1px solid #e5e3db;
+    border-radius: 10px; padding: 10px 12px;
+  }
+  .total-box.all { background: #1f1f1d; border-color: #1f1f1d; color: #fff; }
+  .total-box .num { font-size: 22px; font-weight: 600; line-height: 1.2; }
+  .total-box .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: #6b6a65; }
+  .total-box.all .label { color: #c9c7bd; }
 </style>
 </head>
 <body>
@@ -67,6 +76,8 @@
   </div>
 
   <div class="panel active" id="panelManagers">
+    <div class="totals" id="mgrTotals"></div>
+
     <div class="add-row">
       <input type="text" id="companyInput" placeholder="Company name" />
       <input type="text" id="contactInput" placeholder="Contact name (optional)" />
@@ -251,7 +262,18 @@ function sortManagerRows(list) {
   return sorted;
 }
 
+function renderTotals() {
+  const counts = { flagged: 0, sent: 0, responded: 0, pilot: 0, passed: 0 };
+  mgrRows.forEach(r => { if (r.stage in counts) counts[r.stage]++; });
+  const boxes = [`<div class="total-box all"><div class="num">${mgrRows.length}</div><div class="label">Total managers</div></div>`];
+  Object.keys(counts).forEach(stage => {
+    boxes.push(`<div class="total-box"><div class="num">${counts[stage]}</div><div class="label">${STAGE_LABELS[stage]}</div></div>`);
+  });
+  document.getElementById('mgrTotals').innerHTML = boxes.join('');
+}
+
 function renderManagers() {
+  renderTotals();
   const tbody = document.getElementById('mgrTbody');
   const table = document.getElementById('mgrTable');
   const statusMsg = document.getElementById('mgrStatus');
