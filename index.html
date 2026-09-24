@@ -304,26 +304,20 @@ async function updateStage(id, stage) {
   }
 }
 
-async function updateNotes(id, notes) {
-  try {
-    await fetch(API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ type: 'managers', action: 'update', id, notes })
-    });
-  } catch (e) {
-    alert("Couldn't save notes — check your connection and try again.");
-  }
+function updateNotes(id, notes) {
+  // Don't re-render: the user may be moving on to another field in this row.
+  return updateManagerField(id, { notes }, false);
 }
 
 async function updateManagerField(id, fields, reload = true) {
+  const row = mgrRows.find(r => String(r.id) === String(id));
+  if (row) Object.assign(row, fields);
+  if (reload) renderManagers();
   try {
     await fetch(API_URL, {
       method: 'POST',
       body: JSON.stringify({ type: 'managers', action: 'update', id, ...fields })
     });
-    const row = mgrRows.find(r => String(r.id) === String(id));
-    if (row) Object.assign(row, fields);
-    if (reload) renderManagers();
   } catch (e) {
     alert("Couldn't update — check your connection and try again.");
   }
