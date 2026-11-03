@@ -162,12 +162,7 @@
       <input type="text" id="compFeeInput" placeholder="Fee (e.g. $59)" style="max-width:110px;" />
       <span class="field-label">Deadline</span>
       <input type="date" id="compDeadlineInput" />
-      <select id="compStatusInput">
-        <option value="considering">Considering</option>
-        <option value="submitted">Submitted</option>
-        <option value="advanced">Advanced</option>
-        <option value="not-selected">Not selected</option>
-      </select>
+      <select id="compStatusInput" onchange="if (pickCompStatus(this, this.dataset.prev) !== null) this.dataset.prev = this.value"></select>
       <button id="compAddBtn" onclick="addCompetition()">Add</button>
     </div>
 
@@ -542,6 +537,7 @@ async function loadCompetitions() {
     if (!res.ok) throw new Error('Request failed');
     compRows = await res.json();
     renderCompetitions();
+    refreshCompStatusInput();
   } catch (e) {
     statusMsg.textContent = "Couldn't load from Google Sheets. Check the Competitions tab exists and try again.";
     statusMsg.classList.add('error');
@@ -582,6 +578,53 @@ async function addCompetition() {
   } finally {
     addBtn.disabled = false;
   }
+}
+
+// Built-in statuses. Any other status already saved in the sheet is added to
+// every dropdown too, so custom ones made with "+ New status…" stick around.
+const COMP_STATUSES = [
+  { value: 'considering', label: 'Considering' },
+  { value: 'submitted', label: 'Submitted' },
+  { value: 'advanced', label: 'Advanced' },
+  { value: 'not-selected', label: 'Not selected' }
+];
+const NEW_STATUS = '__new__';
+
+function compStatusOptions(selected) {
+  const statuses = [...COMP_STATUSES];
+  const extra = [...compRows.map(r => r.status), selected];
+  extra.forEach(s => {
+    s = String(s || '').trim();
+    if (s && s !== NEW_STATUS && !statuses.some(st => st.value === s)) statuses.push({ value: s, label: s });
+  });
+  return statuses
+    .map(st => `<option value="${escapeAttr(st.value)}" ${st.value === selected ? 'selected' : ''}>${escapeHtml(st.label)}</option>`)
+    .join('') + `<option value="${NEW_STATUS}">+ New status…</option>`;
+}
+
+// Returns the status chosen in a dropdown, asking for a name when
+// "+ New status…" was picked. Returns null if that was cancelled.
+function pickCompStatus(select, previous) {
+  if (select.value !== NEW_STATUS) return select.value;
+  const name = (prompt('New status (e.g. Quarterfinalist):') || '').trim();
+  if (!name) {
+    select.value = previous;
+    return null;
+  }
+  select.innerHTML = compStatusOptions(name);
+  return name;
+}
+
+function changeCompStatus(id, select) {
+  const row = compRows.find(r => String(r.id) === String(id));
+  const status = pickCompStatus(select, row ? row.status : 'considering');
+  if (status !== null) updateCompStatus(id, status);
+}
+
+function refreshCompStatusInput() {
+  const el = document.getElementById('compStatusInput');
+  el.innerHTML = compStatusOptions(el.value || 'considering');
+  el.dataset.prev = el.value;
 }
 
 async function updateCompStatus(id, status) {
@@ -667,12 +710,7 @@ function renderCompetitions() {
       <td><input type="text" class="comp-field comp-fee" placeholder="—" value="${escapeAttr(r.fee || '')}" onchange="updateCompField('${r.id}', { fee: this.value.trim() })"></td>
       <td><input type="date" class="comp-field comp-deadline" value="${normalizeDate(r.deadline)}" onchange="updateCompField('${r.id}', { deadline: this.value })"></td>
       <td>
-        <select class="stage-select" onchange="updateCompStatus('${r.id}', this.value)">
-          <option value="considering" ${r.status==='considering'?'selected':''}>Considering</option>
-          <option value="submitted" ${r.status==='submitted'?'selected':''}>Submitted</option>
-          <option value="advanced" ${r.status==='advanced'?'selected':''}>Advanced</option>
-          <option value="not-selected" ${r.status==='not-selected'?'selected':''}>Not selected</option>
-        </select>
+        <select class="stage-select" onchange="changeCompStatus('${r.id}', this)">${compStatusOptions(r.status)}</select>
       </td>
       <td><textarea class="comp-notes" onblur="updateCompNotes('${r.id}', this.value)">${escapeHtml(r.notes || '')}</textarea></td>
       <td class="actions"><button class="secondary" onclick="removeCompetition('${r.id}')">Remove</button></td>
@@ -693,6 +731,8 @@ function escapeAttr(s) {
 
 document.getElementById('fitInput').innerHTML = fitCheckboxes([]);
 document.getElementById('stageInput').innerHTML = stageOptions('sent');
+
+refreshCompStatusInput();
 
 loadManagers();
 loadCompetitions();
