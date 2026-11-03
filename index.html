@@ -57,6 +57,9 @@
   .comp-field, input[type=text].comp-field { font-size: 12px; padding: 4px 6px; min-width: 0; width: 100%; }
   textarea.comp-name { font-size: 13px; min-width: 180px; min-height: 0; resize: none; field-sizing: content; }
   input.comp-fee { max-width: 80px; }
+  #compTbody tr.st-submitted td { background: #fdf3c8; }
+  #compTbody tr.st-advanced td { background: #dcefd6; }
+  #compTbody tr.st-not-selected td { background: #f7dcdc; }
   .comp-link { margin-top: 4px; font-size: 12px; }
   .comp-link a { color: #3d5a78; word-break: break-all; }
   .comp-link button.link-edit { background: none; border: none; color: #9b9a94; font-size: 11px; padding: 0 0 0 6px; text-decoration: underline; }
@@ -619,10 +622,17 @@ function pickCompStatus(select, previous) {
   return name;
 }
 
+// Row color by status: considering (and custom statuses) stay white.
+function compStatusClass(status) {
+  return { submitted: 'st-submitted', advanced: 'st-advanced', 'not-selected': 'st-not-selected' }[status] || '';
+}
+
 function changeCompStatus(id, select) {
   const row = compRows.find(r => String(r.id) === String(id));
   const status = pickCompStatus(select, row ? row.status : 'considering');
-  if (status !== null) updateCompStatus(id, status);
+  if (status === null) return;
+  select.closest('tr').className = compStatusClass(status);
+  updateCompStatus(id, status);
 }
 
 function refreshCompStatusInput() {
@@ -746,6 +756,7 @@ function renderCompetitions() {
 
   compRows.forEach(r => {
     const tr = document.createElement('tr');
+    tr.className = compStatusClass(r.status);
     tr.innerHTML = `
       <td>
         <textarea class="comp-field comp-name" rows="1" onkeydown="if (event.key === 'Enter') { event.preventDefault(); this.blur(); }" onchange="updateCompName('${r.id}', this)">${escapeHtml(r.name || '')}</textarea>
