@@ -622,9 +622,17 @@ function pickCompStatus(select, previous) {
   return name;
 }
 
-// Row color by status: considering (and custom statuses) stay white.
+// Row color by status: considering (and other custom statuses) stay white.
+// Matched case-insensitively so custom ones like "Quarterfinalist" work as typed.
+const COMP_STATUS_CLASSES = {
+  submitted: 'st-submitted',
+  advanced: 'st-advanced',
+  quarterfinalist: 'st-advanced',
+  'not-selected': 'st-not-selected'
+};
+
 function compStatusClass(status) {
-  return { submitted: 'st-submitted', advanced: 'st-advanced', 'not-selected': 'st-not-selected' }[status] || '';
+  return COMP_STATUS_CLASSES[String(status || '').trim().toLowerCase()] || '';
 }
 
 function changeCompStatus(id, select) {
