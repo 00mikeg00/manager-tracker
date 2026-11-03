@@ -794,6 +794,13 @@ async function removeCompetition(id) {
   }
 }
 
+// Soonest deadline first, undated after those, and Not selected always at the bottom.
+function sortCompRows(rows) {
+  const rank = r => (r.status === 'not-selected' ? 2 : 0) + (normalizeDate(r.deadline) ? 0 : 1);
+  return [...rows].sort((a, b) =>
+    rank(a) - rank(b) || normalizeDate(a.deadline).localeCompare(normalizeDate(b.deadline)));
+}
+
 function renderCompetitions() {
   const tbody = document.getElementById('compTbody');
   const table = document.getElementById('compTable');
@@ -811,7 +818,7 @@ function renderCompetitions() {
   statusMsg.style.display = 'none';
   table.style.display = 'table';
 
-  compRows.forEach(r => {
+  sortCompRows(compRows).forEach(r => {
     const tr = document.createElement('tr');
     tr.className = compStatusClass(r.status);
     tr.innerHTML = `
