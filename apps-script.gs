@@ -5,7 +5,7 @@ const PROJECTS_SHEET = 'Projects';
 const DEFAULT_PROJECTS = ['Splitting - Pilot', 'Fergus and Gertle - Pilot', 'The Attendant', "I've Created a Monster", 'Help Me!', 'seven minutes'];
 const STAGE_DATE_COL = { flagged: 11, sent: 7, responded: 8, pilot: 9, passed: 10, nudge1: 17, nudge2: 18 }; // 1-indexed
 const MANAGER_EXTRA_COL = { warmth: 12, intro: 13, followUp: 14, fit: 15, category: 16 }; // 1-indexed: L, M, N, O, P
-const COMP_COL = { name: 2, fee: 3, deadline: 4, status: 5, notes: 6, url: 7, project: 8 }; // 1-indexed: B, C, D, E, F, G, H
+const COMP_COL = { name: 2, fee: 3, deadline: 4, status: 5, notes: 6, url: 7, project: 8, submitted: 9 }; // 1-indexed: B, C, D, E, F, G, H, I
 
 function doGet(e) {
   const type = (e.parameter.type || 'managers');
@@ -52,7 +52,8 @@ function getCompetitions() {
     status: r[4],
     notes: r[5],
     url: r[6] || '',
-    project: r[7] || ''
+    project: r[7] || '',
+    submitted: formatIsoDate(r[8])
   })).filter(r => r.id !== '');
   return ContentService.createTextOutput(JSON.stringify(rows))
     .setMimeType(ContentService.MimeType.JSON);
@@ -168,7 +169,7 @@ function postCompetitions(body) {
 
   if (action === 'add') {
     const id = Date.now();
-    sheet.appendRow([id, body.name, body.fee || '', parseIsoDate(body.deadline), body.status || '', body.notes || '', body.url || '', body.project || '']);
+    sheet.appendRow([id, body.name, body.fee || '', parseIsoDate(body.deadline), body.status || '', body.notes || '', body.url || '', body.project || '', parseIsoDate(body.submitted)]);
     return ContentService.createTextOutput(JSON.stringify({ ok: true, id }))
       .setMimeType(ContentService.MimeType.JSON);
   }
@@ -185,6 +186,7 @@ function postCompetitions(body) {
         if (body.notes !== undefined) sheet.getRange(rowNum, COMP_COL.notes).setValue(body.notes);
         if (body.url !== undefined) sheet.getRange(rowNum, COMP_COL.url).setValue(body.url);
         if (body.project !== undefined) sheet.getRange(rowNum, COMP_COL.project).setValue(body.project);
+        if (body.submitted !== undefined) sheet.getRange(rowNum, COMP_COL.submitted).setValue(parseIsoDate(body.submitted));
         break;
       }
     }
