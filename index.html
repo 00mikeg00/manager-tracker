@@ -57,6 +57,7 @@
   .comp-field, input[type=text].comp-field { font-size: 12px; padding: 4px 6px; min-width: 0; width: 100%; }
   textarea.comp-name { font-size: 13px; min-width: 180px; min-height: 0; resize: none; field-sizing: content; }
   input.comp-fee { max-width: 80px; }
+  select.comp-project { max-width: 150px; }
   #compTbody tr.st-submitted td { background: #fdf3c8; }
   #compTbody tr.st-advanced td { background: #dcefd6; }
   #compTbody tr.st-not-selected td { background: #f7dcdc; }
@@ -166,6 +167,7 @@
   <div class="panel" id="panelCompetitions">
     <div class="add-row">
       <input type="text" id="compNameInput" placeholder="Competition / lab name" />
+      <select id="compProjectInput"></select>
       <input type="text" id="compFeeInput" placeholder="Fee (e.g. $59)" style="max-width:110px;" />
       <span class="field-label">Deadline</span>
       <input type="date" id="compDeadlineInput" />
@@ -176,7 +178,7 @@
     <div id="compStatus" class="status">Loading…</div>
     <table id="compTable" style="display:none;">
       <thead>
-        <tr><th>Name</th><th>Fee</th><th>Deadline</th><th>Status</th><th>Notes</th><th></th></tr>
+        <tr><th>Name</th><th>Project</th><th>Fee</th><th>Deadline</th><th>Status</th><th>Notes</th><th></th></tr>
       </thead>
       <tbody id="compTbody"></tbody>
     </table>
@@ -187,6 +189,7 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbzSIgRjjf9waWMqMvOKYduHb3LQ7QQ17TK4UlTOXZNsl0WYFSAsQRAl-fJpdGyIW1tYtw/exec';
 let mgrRows = [];
 let compRows = [];
+let projectList = [];
 const STAGES = [
   { value: 'flagged', label: 'Flagged', option: 'Flagged' },
   { value: 'sent', label: 'Sent', option: 'Sent email' },
@@ -540,11 +543,12 @@ async function loadCompetitions() {
   const statusMsg = document.getElementById('compStatus');
   const table = document.getElementById('compTable');
   try {
-    const res = await fetch(API_URL + '?type=competitions');
+    const [res] = await Promise.all([fetch(API_URL + '?type=competitions'), loadProjects()]);
     if (!res.ok) throw new Error('Request failed');
     compRows = await res.json();
     renderCompetitions();
     refreshCompStatusInput();
+    refreshCompProjectInput();
   } catch (e) {
     statusMsg.textContent = "Couldn't load from Google Sheets. Check the Competitions tab exists and try again.";
     statusMsg.classList.add('error');
@@ -553,14 +557,42 @@ async function loadCompetitions() {
   }
 }
 
+// Project titles come from the sheet's Projects tab, so the list is edited there.
+async function loadProjects() {
+  try {
+    const res = await fetch(API_URL + '?type=projects');
+    const list = res.ok ? await res.json() : [];
+    // Only plain titles count; an older script answers unknown types with manager rows.
+    projectList = Array.isArray(list) ? list.filter(t => typeof t === 'string' && t.trim()) : [];
+  } catch (e) {
+    projectList = [];
+  }
+}
+
+function projectOptions(selected) {
+  selected = String(selected || '');
+  const titles = [...projectList];
+  // Keep a project that was renamed or removed from the list visible on rows that use it.
+  if (selected && !titles.includes(selected)) titles.push(selected);
+  return `<option value="">— Project —</option>` +
+    titles.map(t => `<option value="${escapeAttr(t)}" ${t === selected ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('');
+}
+
+function refreshCompProjectInput() {
+  const el = document.getElementById('compProjectInput');
+  el.innerHTML = projectOptions(el.value);
+}
+
 async function addCompetition() {
   const nameEl = document.getElementById('compNameInput');
+  const projectEl = document.getElementById('compProjectInput');
   const feeEl = document.getElementById('compFeeInput');
   const deadlineEl = document.getElementById('compDeadlineInput');
   const statusEl = document.getElementById('compStatusInput');
   const addBtn = document.getElementById('compAddBtn');
 
   const name = nameEl.value.trim();
+  const project = projectEl.value;
   const fee = feeEl.value.trim();
   const deadline = deadlineEl.value.trim();
   const status = statusEl.value;
@@ -574,9 +606,10 @@ async function addCompetition() {
   try {
     await fetch(API_URL, {
       method: 'POST',
-      body: JSON.stringify({ type: 'competitions', action: 'add', name, fee, deadline, status, notes: '' })
+      body: JSON.stringify({ type: 'competitions', action: 'add', name, project, fee, deadline, status, notes: '' })
     });
     nameEl.value = '';
+    projectEl.value = '';
     feeEl.value = '';
     deadlineEl.value = '';
     await loadCompetitions();
@@ -770,6 +803,7 @@ function renderCompetitions() {
         <textarea class="comp-field comp-name" rows="1" onkeydown="if (event.key === 'Enter') { event.preventDefault(); this.blur(); }" onchange="updateCompName('${r.id}', this)">${escapeHtml(r.name || '')}</textarea>
         <div class="comp-link">${compLinkHtml(r)}</div>
       </td>
+      <td><select class="stage-select comp-project" onchange="updateCompField('${r.id}', { project: this.value })">${projectOptions(r.project)}</select></td>
       <td><input type="text" class="comp-field comp-fee" placeholder="—" value="${escapeAttr(r.fee || '')}" onchange="updateCompField('${r.id}', { fee: this.value.trim() })"></td>
       <td><input type="date" class="comp-field comp-deadline" value="${normalizeDate(r.deadline)}" onchange="updateCompField('${r.id}', { deadline: this.value })"></td>
       <td>
