@@ -57,6 +57,10 @@
   .comp-field, input[type=text].comp-field { font-size: 12px; padding: 4px 6px; min-width: 0; width: 100%; }
   textarea.comp-name { font-size: 13px; min-width: 180px; min-height: 0; resize: none; field-sizing: content; }
   input.comp-fee { max-width: 80px; }
+  .comp-link { margin-top: 4px; font-size: 12px; }
+  .comp-link a { color: #3d5a78; word-break: break-all; }
+  .comp-link button.link-edit { background: none; border: none; color: #9b9a94; font-size: 11px; padding: 0 0 0 6px; text-decoration: underline; }
+  input[type=text].comp-url { font-size: 11px; padding: 3px 6px; color: #6b6a65; }
   input.comp-deadline { max-width: 150px; }
   .totals { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
   .total-box {
@@ -663,6 +667,43 @@ function updateCompName(id, input) {
   updateCompField(id, { name });
 }
 
+// Always returns an http(s) URL (or ''), so a saved link can't run script.
+function normalizeUrl(v) {
+  v = String(v || '').trim();
+  if (!v) return '';
+  return /^https?:\/\//i.test(v) ? v : 'https://' + v;
+}
+
+function displayUrl(url) {
+  return url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
+}
+
+// Website line under a competition name: a clickable link once set,
+// otherwise (or while editing) a box to paste the URL into.
+function compLinkHtml(r, editing = false) {
+  const url = normalizeUrl(r.url);
+  if (url && !editing) {
+    return `<a href="${escapeAttr(url)}" target="_blank" rel="noopener">${escapeHtml(displayUrl(url))}</a>` +
+      `<button class="link-edit" onclick="editCompLink('${r.id}', this)">edit</button>`;
+  }
+  return `<input type="text" class="comp-field comp-url" placeholder="Add website URL" value="${escapeAttr(url)}" ` +
+    `onkeydown="if (event.key === 'Enter') this.blur()" onblur="saveCompLink('${r.id}', this)">`;
+}
+
+function editCompLink(id, btn) {
+  const row = compRows.find(r => String(r.id) === String(id));
+  const box = btn.closest('.comp-link');
+  box.innerHTML = compLinkHtml(row || {}, true);
+  box.querySelector('input').focus();
+}
+
+function saveCompLink(id, input) {
+  const row = compRows.find(r => String(r.id) === String(id));
+  const url = normalizeUrl(input.value);
+  if (row && url !== normalizeUrl(row.url)) updateCompField(id, { url });
+  input.closest('.comp-link').innerHTML = compLinkHtml(row || { url });
+}
+
 async function updateCompNotes(id, notes) {
   try {
     await fetch(API_URL, {
@@ -706,7 +747,10 @@ function renderCompetitions() {
   compRows.forEach(r => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><textarea class="comp-field comp-name" rows="1" onkeydown="if (event.key === 'Enter') { event.preventDefault(); this.blur(); }" onchange="updateCompName('${r.id}', this)">${escapeHtml(r.name || '')}</textarea></td>
+      <td>
+        <textarea class="comp-field comp-name" rows="1" onkeydown="if (event.key === 'Enter') { event.preventDefault(); this.blur(); }" onchange="updateCompName('${r.id}', this)">${escapeHtml(r.name || '')}</textarea>
+        <div class="comp-link">${compLinkHtml(r)}</div>
+      </td>
       <td><input type="text" class="comp-field comp-fee" placeholder="—" value="${escapeAttr(r.fee || '')}" onchange="updateCompField('${r.id}', { fee: this.value.trim() })"></td>
       <td><input type="date" class="comp-field comp-deadline" value="${normalizeDate(r.deadline)}" onchange="updateCompField('${r.id}', { deadline: this.value })"></td>
       <td>
