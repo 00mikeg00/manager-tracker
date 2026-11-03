@@ -54,7 +54,8 @@
   .empty, .status { text-align: center; color: #9b9a94; padding: 20px; font-size: 14px; }
   .error { color: #a03434; }
   .comp-notes { width: 100%; font-size: 12px; min-height: 32px; }
-  input.comp-field { font-size: 12px; padding: 4px 6px; min-width: 0; width: 100%; }
+  .comp-field, input[type=text].comp-field { font-size: 12px; padding: 4px 6px; min-width: 0; width: 100%; }
+  textarea.comp-name { font-size: 13px; min-width: 180px; min-height: 0; resize: none; field-sizing: content; }
   input.comp-fee { max-width: 80px; }
   input.comp-deadline { max-width: 150px; }
   .totals { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -608,6 +609,17 @@ async function updateCompField(id, fields) {
   }
 }
 
+function updateCompName(id, input) {
+  const name = input.value.trim();
+  if (!name) {
+    // Name is required — put the old one back instead of saving a blank.
+    const row = compRows.find(r => String(r.id) === String(id));
+    input.value = row ? row.name : '';
+    return;
+  }
+  updateCompField(id, { name });
+}
+
 async function updateCompNotes(id, notes) {
   try {
     await fetch(API_URL, {
@@ -651,7 +663,7 @@ function renderCompetitions() {
   compRows.forEach(r => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${escapeHtml(r.name)}</td>
+      <td><textarea class="comp-field comp-name" rows="1" onkeydown="if (event.key === 'Enter') { event.preventDefault(); this.blur(); }" onchange="updateCompName('${r.id}', this)">${escapeHtml(r.name || '')}</textarea></td>
       <td><input type="text" class="comp-field comp-fee" placeholder="—" value="${escapeAttr(r.fee || '')}" onchange="updateCompField('${r.id}', { fee: this.value.trim() })"></td>
       <td><input type="date" class="comp-field comp-deadline" value="${normalizeDate(r.deadline)}" onchange="updateCompField('${r.id}', { deadline: this.value })"></td>
       <td>
